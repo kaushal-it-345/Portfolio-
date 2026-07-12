@@ -1,0 +1,116 @@
+:root {
+  /* Color Palette - Serene Luxury Heritage (Light) */
+  --bg: #f5faf8;
+  --on-bg: #1e293b;
+  --primary: #0d9488;
+  --primary-hover: #0f766e;
+  --secondary: #4059aa;
+  --surface: #ffffff;
+  --surface-border: rgba(64, 89, 170, 0.08);
+  --text-muted: #5e6c84;
+  --accent-light: #e6f4f2;
+  --secondary-light: #eef2ff;
+  
+  /* Fonts */
+  --font-heading: 'EB Garamond', serif;
+  --font-body: 'Inter', sans-serif;
+
+  /* Layout & Spacing */
+  --container-max: 800px; /* narrowed for a cleaner, editorial look */
+  --radius-sm: 8px;
+  --radius-md: 16px;
+  --radius-lg: 32px; /* soft, highly rounded corners */
+  --radius-xl: 9999px; /* pill shape */
+  
+  color-scheme: light;
+  color: var(--on-bg);
+  background: var(--bg);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background-color: var(--bg);
+  background-image: 
+    radial-gradient(at 0% 0%, rgba(13, 148, 136, 0.08) 0px, transparent 50%),
+    radial-gradient(at 100% 100%, rgba(64, 89, 170, 0.06) 0px, transparent 50%);
+  background-attachment: fixed;
+  min-height: 100vh;
+}
+
+#root {
+  max-width: var(--container-max);
+  margin: 0 auto;
+  padding: 60px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+/* Typography */
+h1, h2, h3 {
+  font-family: var(--font-heading);
+  color: var(--on-bg);
+  margin: 0;
+  font-weight: 500;
+}
+
+p {
+  color: var(--text-muted);
+  line-height: 1.7;
+}
+
+/* Clean, Rounded Card Styles */
+.clean-panel {
+  background: var(--surface);
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius-lg);
+  padding: 40px;
+  box-shadow: 0 10px 40px rgba(64, 89, 170, 0.04);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.clean-panel:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 16px 48px rgba(64, 89, 170, 0.08);
+  border-color: rgba(64, 89, 170, 0.15);
+}
+
+/* Styled buttons and interactive states */
+.btn-secondary {
+  background: var(--secondary-light);
+  color: var(--secondary);
+  border: none;
+  padding: 10px 20px;
+  font-family: var(--font-body);
+  font-weight: 500;
+  border-radius: var(--radius-xl);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-secondary:hover {
+  border-color: var(--pastel-lilac);
+  background: rgba(224, 231, 255, 0.05);
+  transform: translateY(-2px);
+}
+
+.portfolio-grid {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap: 32px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+@media (max-width: 768px) {
+  .portfolio-grid {
+    grid-template-columns: 1fr;
+  }
+}

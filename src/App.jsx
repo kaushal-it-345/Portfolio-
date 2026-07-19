@@ -1,23 +1,24 @@
-import Header from './components/Header';
-import About from './components/About';
-import Skills from './components/Skills';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import Navigation from './components/Navigation';
+import Home from './components/Home';
+import Projects from './components/Projects';
+import Contact from './components/Contact';
 import Footer from './components/Footer';
 
 function App(){
-const skills = ["HTML","CSS","JavaScript","React","Git"];
-
-return(
-
-<div>
-    <Header name="Kaushal Patel" themeColor="#1abc9c"/>
-    <div className="portfolio-grid">
-        <About />
-        <Skills title="my SKills" skills={skills} />
-    </div>
-    <Footer email="abc@gmail.com"/>
-</div>
-
-);
+    return(
+        <BrowserRouter>
+            <div>
+                <Navigation />
+                <Routes>
+                    <Route path="/" element={<Home />} />
+                    <Route path="/projects" element={<Projects />} />
+                    <Route path="/contact" element={<Contact />} />
+                </Routes>
+                <Footer email="d25it127@charusat.edu.in"/>
+            </div>
+        </BrowserRouter>
+    );
 }
 
 export default App;

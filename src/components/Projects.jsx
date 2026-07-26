@@ -1,114 +1,107 @@
+import { useEffect, useState } from 'react';
+import LoadingSpinner from './LoadingSpinner';
+import ErrorMessage from './ErrorMessage';
+
+const GITHUB_USERNAME = 'octocat';
+const REPO_COUNT = 6;
+
 function Projects() {
-    const projects = [
-        {
-            id: 1,
-            title: "Student Portfolio",
-            description: "A responsive portfolio website built with React and Vite showcasing my projects and skills.",
-            technologies: ["React", "Vite", "CSS", "JavaScript"]
-        },
-        {
-            id: 2,
-            title: "Todo Application",
-            description: "A feature-rich todo app with add, delete, and mark complete functionality using React Hooks.",
-            technologies: ["React", "JavaScript", "Local Storage"]
-        },
-        {
-            id: 3,
-            title: "Weather App",
-            description: "A weather forecast application that fetches real-time data from an API and displays it beautifully.",
-            technologies: ["React", "API Integration", "CSS"]
-        },
-        {
-            id: 4,
-            title: "Calculator",
-            description: "A fully functional calculator built with vanilla JavaScript supporting basic arithmetic operations.",
-            technologies: ["JavaScript", "HTML", "CSS"]
+    const [repositories, setRepositories] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState('');
+
+    useEffect(() => {
+        const controller = new AbortController();
+
+        async function loadRepositories() {
+            try {
+                setLoading(true);
+                setError('');
+
+                const response = await fetch(
+                    `https://api.github.com/users/${GITHUB_USERNAME}/repos?sort=updated&per_page=${REPO_COUNT}`,
+                    {
+                        signal: controller.signal,
+                        headers: {
+                            Accept: 'application/vnd.github+json'
+                        }
+                    }
+                );
+
+                if (!response.ok) {
+                    throw new Error('Unable to fetch repositories from GitHub.');
+                }
+
+                const data = await response.json();
+                setRepositories(data);
+            } catch (requestError) {
+                if (requestError.name !== 'AbortError') {
+                    setError(requestError.message || 'Something went wrong while loading repositories.');
+                }
+            } finally {
+                setLoading(false);
+            }
         }
-    ];
+
+        loadRepositories();
+
+        return () => controller.abort();
+    }, []);
 
     return (
-        <div style={{ padding: '48px 24px', maxWidth: '1200px', margin: '0 auto' }}>
-            <h1 style={{ 
-                fontSize: '2.5rem', 
-                fontFamily: 'var(--font-heading)',
-                marginBottom: '12px',
-                color: 'var(--on-bg)'
-            }}>
-                Projects
-            </h1>
-            <div style={{ 
-                width: '60px', 
-                height: '3px', 
-                backgroundColor: 'var(--primary)', 
-                marginBottom: '48px' 
-            }}></div>
-
-            <div style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
-                gap: '24px'
-            }}>
-                {projects.map((project) => (
-                    <div 
-                        key={project.id}
-                        className="clean-panel"
-                        style={{
-                            padding: '24px',
-                            borderRadius: '8px',
-                            boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-                            transition: 'transform 0.3s, box-shadow 0.3s',
-                            cursor: 'pointer'
-                        }}
-                        onMouseEnter={(e) => {
-                            e.currentTarget.style.transform = 'translateY(-4px)';
-                            e.currentTarget.style.boxShadow = '0 8px 16px rgba(0,0,0,0.15)';
-                        }}
-                        onMouseLeave={(e) => {
-                            e.currentTarget.style.transform = 'translateY(0)';
-                            e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.1)';
-                        }}
-                    >
-                        <h3 style={{
-                            fontSize: '1.3rem',
-                            color: 'var(--primary)',
-                            marginBottom: '12px',
-                            fontFamily: 'var(--font-heading)'
-                        }}>
-                            {project.title}
-                        </h3>
-                        <p style={{
-                            fontSize: '0.95rem',
-                            lineHeight: '1.6',
-                            color: 'var(--on-bg)',
-                            marginBottom: '16px'
-                        }}>
-                            {project.description}
-                        </p>
-                        <div style={{
-                            display: 'flex',
-                            flexWrap: 'wrap',
-                            gap: '8px'
-                        }}>
-                            {project.technologies.map((tech, idx) => (
-                                <span 
-                                    key={idx}
-                                    style={{
-                                        backgroundColor: 'var(--primary)',
-                                        color: 'white',
-                                        padding: '4px 12px',
-                                        borderRadius: '16px',
-                                        fontSize: '0.8rem',
-                                        fontWeight: '600'
-                                    }}
-                                >
-                                    {tech}
-                                </span>
-                            ))}
-                        </div>
+        <section className="projects-page">
+            <div className="projects-hero clean-panel">
+                <div className="projects-kicker">GitHub live feed</div>
+                <h1 className="projects-title">Projects</h1>
+                <p className="projects-intro">
+                    Live repositories from GitHub update automatically when the page loads.
+                    Each card highlights the repository name and a direct link to the source.
+                </p>
+                <div className="projects-stats">
+                    <div className="projects-stat">
+                        <span className="projects-stat-value">{REPO_COUNT}</span>
+                        <span className="projects-stat-label">Repositories shown</span>
                     </div>
-                ))}
+                    <div className="projects-stat">
+                        <span className="projects-stat-value">Live</span>
+                        <span className="projects-stat-label">Fetched from GitHub</span>
+                    </div>
+                </div>
             </div>
-        </div>
+
+            {loading ? (
+                <LoadingSpinner message="Loading repositories from GitHub..." />
+            ) : error ? (
+                <ErrorMessage message={error} />
+            ) : (
+                <div className="projects-grid">
+                    {repositories.map((repository) => (
+                        <article
+                            key={repository.id}
+                            className="projects-card clean-panel"
+                        >
+                            <div className="projects-card-topline" />
+                            <div className="projects-card-header">
+                                <div>
+                                    <p className="projects-card-label">Repository</p>
+                                    <h3 className="projects-card-title">{repository.name}</h3>
+                                </div>
+                                <span className="projects-card-pill">GitHub</span>
+                            </div>
+                            <p className="projects-card-url-label">Source URL</p>
+                            <a
+                                href={repository.html_url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="projects-card-link"
+                            >
+                                {repository.html_url}
+                            </a>
+                        </article>
+                    ))}
+                </div>
+            )}
+        </section>
     );
 }
 

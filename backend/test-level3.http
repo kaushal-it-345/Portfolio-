@@ -1,0 +1,163 @@
+### ============================================
+### LEVEL 3 (HATEOAS) API Test Requests
+### ============================================
+### Use with REST Client extension in VS Code
+### ============================================
+
+### ============================================
+### 1. API DISCOVERY ENDPOINTS
+### ============================================
+
+### 1.1 API Root - Entry Point for Discovery
+GET http://localhost:5000/
+
+### 1.2 API Documentation
+GET http://localhost:5000/docs
+
+### 1.3 Health Check
+GET http://localhost:5000/health
+
+### ============================================
+### 2. HATEOAS - FOLLOWING LINKS
+### ============================================
+
+### 2.1 Get All Tasks (with links)
+GET http://localhost:5000/api/tasks
+
+### 2.2 Get Single Task (with links)
+GET http://localhost:5000/api/tasks/1
+
+### 2.3 Get Non-existent Task (404 with links)
+GET http://localhost:5000/api/tasks/999
+
+### ============================================
+### 3. CREATE TASK (follow link from collection)
+### ============================================
+
+### 3.1 Create New Task
+POST http://localhost:5000/api/tasks
+Content-Type: application/json
+
+{
+  "title": "Learn HATEOAS",
+  "description": "Understand hypermedia-driven APIs"
+}
+
+### 3.2 Create Task - Missing Title (400 Error)
+POST http://localhost:5000/api/tasks
+Content-Type: application/json
+
+{
+  "description": "This should fail because title is missing"
+}
+
+### ============================================
+### 4. UPDATE TASK (follow update link)
+### ============================================
+
+### 4.1 Mark Task as Complete (use mark_complete link)
+PUT http://localhost:5000/api/tasks/1
+Content-Type: application/json
+
+{
+  "completed": true
+}
+
+### 4.2 Update Task Title and Description
+PUT http://localhost:5000/api/tasks/2
+Content-Type: application/json
+
+{
+  "title": "Updated: Build Task API",
+  "description": "Create REST endpoints with HATEOAS links"
+}
+
+### 4.3 Mark Task as Incomplete (use mark_incomplete link)
+PUT http://localhost:5000/api/tasks/1
+Content-Type: application/json
+
+{
+  "completed": false
+}
+
+### 4.4 Update Non-existent Task (404 with links)
+PUT http://localhost:5000/api/tasks/999
+Content-Type: application/json
+
+{
+  "title": "This task does not exist"
+}
+
+### ============================================
+### 5. DELETE TASK (follow delete link)
+### ============================================
+
+### 5.1 Delete Task
+DELETE http://localhost:5000/api/tasks/3
+
+### 5.2 Delete Non-existent Task (404 with links)
+DELETE http://localhost:5000/api/tasks/999
+
+### ============================================
+### 6. ERROR HANDLING (responses with links)
+### ============================================
+
+### 6.1 Invalid Route (404 with HATEOAS links)
+GET http://localhost:5000/api/invalid-endpoint
+
+### 6.2 Invalid JSON (400 Bad Request)
+POST http://localhost:5000/api/tasks
+Content-Type: application/json
+
+{
+  invalid json here
+}
+
+### ============================================
+### 7. COMPLETE WORKFLOW EXAMPLE
+### ============================================
+### This demonstrates full HATEOAS navigation
+
+### Step 1: Start at API Root
+GET http://localhost:5000/
+
+### Step 2: Follow 'tasks' link to get all tasks
+GET http://localhost:5000/api/tasks
+
+### Step 3: Extract task._links.update and update task
+PUT http://localhost:5000/api/tasks/1
+Content-Type: application/json
+
+{
+  "title": "Updated via HATEOAS link",
+  "completed": true
+}
+
+### Step 4: Follow collection link to see all tasks
+GET http://localhost:5000/api/tasks
+
+### Step 5: Follow create link to add new task
+POST http://localhost:5000/api/tasks
+Content-Type: application/json
+
+{
+  "title": "New Task from HATEOAS Link",
+  "description": "Created by following the create link"
+}
+
+### Step 6: Follow api-root link to go back home
+GET http://localhost:5000/
+
+### ============================================
+### NOTES:
+### ============================================
+### 
+### 1. Each response includes _links object
+### 2. Use link.href and link.method to navigate
+### 3. Link titles explain what each action does
+### 4. Some links include 'body' with suggested payload
+### 5. Clients can discover API without hardcoding URLs
+### 6. Error responses also include helpful links
+### 7. This is Richardson Maturity Model Level 3 (HATEOAS)
+###
+### ============================================

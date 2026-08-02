@@ -5,7 +5,11 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "nodemon server.js"
+    "dev": "nodemon server.js",
+    "level2": "node server.js",
+    "level2:dev": "nodemon server.js",
+    "level3": "node server-level3.js",
+    "level3:dev": "nodemon server-level3.js"
   },
   "keywords": [
     "task",

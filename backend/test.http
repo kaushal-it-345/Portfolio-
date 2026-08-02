@@ -1,0 +1,94 @@
+### Health Check
+GET http://localhost:5000/health
+
+###
+
+### Get All Tasks
+GET http://localhost:5000/api/tasks
+
+###
+
+### Get Task by ID (ID: 1)
+GET http://localhost:5000/api/tasks/1
+
+###
+
+### Get Task by ID (ID: 999 - Not Found)
+GET http://localhost:5000/api/tasks/999
+
+###
+
+### Create New Task
+POST http://localhost:5000/api/tasks
+Content-Type: application/json
+
+{
+  "title": "Learn Node.js",
+  "description": "Study Node.js and Express"
+}
+
+###
+
+### Create Task with Missing Title (Error)
+POST http://localhost:5000/api/tasks
+Content-Type: application/json
+
+{
+  "description": "This should fail"
+}
+
+###
+
+### Update Task (Complete it)
+PUT http://localhost:5000/api/tasks/1
+Content-Type: application/json
+
+{
+  "completed": true
+}
+
+###
+
+### Update Task (Change title and description)
+PUT http://localhost:5000/api/tasks/2
+Content-Type: application/json
+
+{
+  "title": "Updated: Build Task API",
+  "description": "Create REST endpoints for tasks with proper error handling"
+}
+
+###
+
+### Update Task (Invalid completed field)
+PUT http://localhost:5000/api/tasks/1
+Content-Type: application/json
+
+{
+  "completed": "yes"
+}
+
+###
+
+### Update Non-existent Task (404 Error)
+PUT http://localhost:5000/api/tasks/999
+Content-Type: application/json
+
+{
+  "title": "This task does not exist"
+}
+
+###
+
+### Delete Task
+DELETE http://localhost:5000/api/tasks/3
+
+###
+
+### Delete Non-existent Task (404 Error)
+DELETE http://localhost:5000/api/tasks/999
+
+###
+
+### Test Invalid Route (404 Error)
+GET http://localhost:5000/api/invalid-endpoint

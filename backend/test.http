@@ -3,44 +3,69 @@ GET http://localhost:5000/health
 
 ###
 
-### Get All Tasks
-GET http://localhost:5000/api/tasks
+### 1. Get All Tasks (GET /tasks)
+GET http://localhost:5000/tasks
 
 ###
 
-### Get Task by ID (ID: 1)
-GET http://localhost:5000/api/tasks/1
+### 2. Get Task by ID (Valid integer ID)
+GET http://localhost:5000/tasks/1
 
 ###
 
-### Get Task by ID (ID: 999 - Not Found)
-GET http://localhost:5000/api/tasks/999
+### 3. Get Task by ID (Route-specific middleware: Invalid ID format -> 400 Bad Request)
+GET http://localhost:5000/tasks/abc
 
 ###
 
-### Create New Task
-POST http://localhost:5000/api/tasks
+### 4. Get Task by ID (Non-existent task -> 404 Not Found)
+GET http://localhost:5000/tasks/999
+
+###
+
+### 5. Create Task (POST /tasks with valid JSON)
+POST http://localhost:5000/tasks
 Content-Type: application/json
 
 {
-  "title": "Learn Node.js",
-  "description": "Study Node.js and Express"
+  "title": "Master Express.js",
+  "description": "Implement middleware pipeline and RESTful CRUD endpoints"
 }
 
 ###
 
-### Create Task with Missing Title (Error)
-POST http://localhost:5000/api/tasks
-Content-Type: application/json
+### 6. Create Task missing Content-Type (Supplementary Problem 1 -> 415 Unsupported Media Type)
+POST http://localhost:5000/tasks
 
 {
-  "description": "This should fail"
+  "title": "Missing Content-Type Header"
 }
 
 ###
 
-### Update Task (Complete it)
-PUT http://localhost:5000/api/tasks/1
+### 7. Create Task with Missing Title (Validation error -> 400 Bad Request)
+POST http://localhost:5000/tasks
+Content-Type: application/json
+
+{
+  "description": "No title provided"
+}
+
+###
+
+### 8. Update Task (PUT /tasks/1)
+PUT http://localhost:5000/tasks/1
+Content-Type: application/json
+
+{
+  "title": "Learn Express.js (Completed)",
+  "completed": true
+}
+
+###
+
+### 9. Update Task with Invalid ID format (Route-specific middleware -> 400 Bad Request)
+PUT http://localhost:5000/tasks/invalid-id
 Content-Type: application/json
 
 {
@@ -49,46 +74,35 @@ Content-Type: application/json
 
 ###
 
-### Update Task (Change title and description)
-PUT http://localhost:5000/api/tasks/2
+### 10. Update Non-Existent Task (404 Not Found)
+PUT http://localhost:5000/tasks/999
 Content-Type: application/json
 
 {
-  "title": "Updated: Build Task API",
-  "description": "Create REST endpoints for tasks with proper error handling"
+  "title": "Non-existent task"
 }
 
 ###
 
-### Update Task (Invalid completed field)
-PUT http://localhost:5000/api/tasks/1
-Content-Type: application/json
-
-{
-  "completed": "yes"
-}
+### 11. Delete Task (DELETE /tasks/3)
+DELETE http://localhost:5000/tasks/3
 
 ###
 
-### Update Non-existent Task (404 Error)
-PUT http://localhost:5000/api/tasks/999
-Content-Type: application/json
-
-{
-  "title": "This task does not exist"
-}
+### 12. Delete Task with Invalid ID format (400 Bad Request)
+DELETE http://localhost:5000/tasks/xyz
 
 ###
 
-### Delete Task
-DELETE http://localhost:5000/api/tasks/3
+### 13. Delete Non-Existent Task (404 Not Found)
+DELETE http://localhost:5000/tasks/999
 
 ###
 
-### Delete Non-existent Task (404 Error)
-DELETE http://localhost:5000/api/tasks/999
+### 14. Undefined Route Handler (Supplementary Problem 3 -> 404 JSON)
+GET http://localhost:5000/non-existent-endpoint
 
 ###
 
-### Test Invalid Route (404 Error)
-GET http://localhost:5000/api/invalid-endpoint
+### 15. Global Error Handler Test (Deliberate 500 error)
+GET http://localhost:5000/error-test

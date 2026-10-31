@@ -30,7 +30,7 @@ function Contact() {
     const handleSubmit = (e) => {
         e.preventDefault();
         setShowSuccessMessage(true);
-        
+
         // Auto dismiss and reset after 4 seconds
         setTimeout(() => {
             setFormData({ name: '', email: '', message: '' });
@@ -43,8 +43,8 @@ function Contact() {
             <div className="clean-panel" style={{ padding: '36px 32px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '12px' }}>
                     <div>
-                        <h1 style={{ 
-                            fontSize: '2.5rem', 
+                        <h1 style={{
+                            fontSize: '2.5rem',
                             fontFamily: 'var(--font-heading)',
                             marginBottom: '8px',
                             color: 'var(--on-bg)'
@@ -81,11 +81,11 @@ function Contact() {
                     </button>
                 </div>
 
-                <div style={{ 
-                    width: '50px', 
-                    height: '3px', 
-                    backgroundColor: 'var(--primary)', 
-                    margin: '20px 0 28px' 
+                <div style={{
+                    width: '50px',
+                    height: '3px',
+                    backgroundColor: 'var(--primary)',
+                    margin: '20px 0 28px'
                 }}></div>
 
                 {/* Conditional UI Element toggled by showHelpTooltip state */}
@@ -285,7 +285,7 @@ function Contact() {
                         </div>
                     </div>
 
-                    <button 
+                    <button
                         type="submit"
                         style={{
                             backgroundColor: 'var(--primary)',
@@ -329,7 +329,7 @@ function Contact() {
                         💼 LinkedIn: <strong style={{ color: 'var(--on-bg)' }}>Kaushal Patel</strong>
                     </p>
                     <p style={{ color: 'var(--text-muted)', margin: '6px 0', fontSize: '0.92rem' }}>
-                        🐙 GitHub: <strong style={{ color: 'var(--on-bg)' }}>@kaushalpatel</strong>
+                        🐙 GitHub: <strong style={{ color: 'var(--on-bg)' }}>kaushal-it-345/Portfolio</strong>
                     </p>
                 </div>
             </div>

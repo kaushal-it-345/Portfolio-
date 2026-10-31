@@ -10,13 +10,17 @@
 1. [Overview](#-overview)
 2. [Practical 2: State Management and Routing in React](#-practical-2-state-management-and-routing-in-react)
 3. [Practical 3: API Integration and Data Rendering in React](#-practical-3-api-integration-and-data-rendering-in-react)
-4. [Conceptual Analysis & Viva Questions](#-conceptual-analysis--viva-questions)
-5. [Setup & Running Locally](#-setup--running-locally)
+4. [Practical 4: Building a RESTful API with Node.js and Express](#-practical-4-building-a-restful-api-with-nodejs-and-express)
+5. [Richardson Maturity Model Evaluation (RMM Levels 0–3)](#-richardson-maturity-model-evaluation-rmm-levels-03)
+6. [Conceptual Analysis & Viva Questions](#-conceptual-analysis--viva-questions)
+7. [Setup & Running Locally](#-setup--running-locally)
 
 ---
 
 ## 🌟 Overview
-This repository contains the progressive laboratory implementations for the **Advanced Web Development Frameworks** course. It features a modern, responsive Single Page Application (SPA) built using **React 19**, **Vite**, and **React Router v7**, with client-side state management and asynchronous REST API integration.
+This repository contains the progressive laboratory implementations for the **Advanced Web Development Frameworks** course, featuring:
+- **Frontend:** A modern, responsive React 19 SPA built with Vite, React Router v7, custom themes, and live GitHub REST API feeds.
+- **Backend:** A RESTful Task Management API built with Node.js, Express, middleware pipelines, and evaluation against the Richardson Maturity Model.
 
 ---
 
@@ -33,12 +37,6 @@ To implement reactive state management using `useState` and multi-page client-si
 | `/contact` | `Contact.jsx` | Interactive contact form with real-time input capture and character counter |
 | `*` | `NotFound.jsx` | Custom 404 error page for undefined routes with return navigation |
 
-### State Management Features
-- **Controlled Form Inputs (`Contact.jsx`):** State managed via `formData` (`name`, `email`, `message`), updating on each keystroke and displayed in real-time.
-- **Live Character Counter:** Dynamic character count (`{formData.message.length} / 500`) with visual threshold cues.
-- **Help Tooltip Toggle:** `showHelpTooltip` state to toggle form instructions on and off.
-- **Dark/Light Mode:** `isDarkMode` state that applies `.dark-theme` to the root element.
-
 ---
 
 ## 🌐 Practical 3: API Integration and Data Rendering in React
@@ -53,62 +51,115 @@ Projects.jsx
 ├── useState: repositories, loading, error, searchTerm
 ├── [loading]  → <LoadingSpinner />
 ├── [error]    → <ErrorMessage message={error} onRetry={fetchRepositories} />
-└── [success]  → Filtered Repository Cards
-                  ├── Repository Name + ⭐ Stargazers Count
-                  ├── Language Badge & Description
-                  └── Direct Source URL
+└── [success]  → Filtered Repository Cards (Name, ⭐ Stars, URL, Language)
 ```
 
-### Key Technical Implementations
-1. **Public REST API Consumed:**
-   - **Endpoint:** `https://api.github.com/users/octocat/repos?sort=updated&per_page=9`
-   - **Method:** `GET` with `Accept: application/vnd.github+json`
-2. **Three Core Asynchronous States:**
-   - `repositories`: Holds fetched repository data objects.
-   - `loading`: Boolean state indicating active network request; displays animated `<LoadingSpinner />`.
-   - `error`: Stores API error message if the network request or HTTP status fails; displays `<ErrorMessage />`.
-3. **Supplementary Problems Implemented:**
-   - **Retry Button:** Added an intuitive `🔄 Retry Request` action in `ErrorMessage` and on the page header to re-trigger the fetch without reloading the page.
-   - **Search / Filter Input:** Real-time filter input that searches repositories dynamically by name.
-   - **Star Count Display:** Displays each repository's GitHub star count (`⭐ {repository.stargazers_count}`) alongside the repository name.
-   - **Interactive Error Simulation:** Includes a `⚡ Simulate API Error` button allowing faculty and testers to verify the error boundary and retry mechanism deliberately.
+---
+
+## 🚀 Practical 4: Building a RESTful API with Node.js and Express
+
+### Objective
+To design and implement a RESTful backend server with complete CRUD endpoints using Express middleware pipelines.
+
+### Architecture / Diagram
+```
+Client (Postman / Browser / Thunder Client)
+  │
+  ▼
+[Request Logging Middleware]  (logs method, url, timestamp)
+  │
+  ▼
+[Content-Type Validation Middleware]  (enforces application/json on POST/PUT -> 415)
+  │
+  ▼
+Express Router (/tasks and /api/tasks)
+  ├── GET    /tasks           → getAllTasks (200 OK)
+  ├── GET    /tasks/:id       → [validateTaskId] → getTaskById (200 OK / 404 Not Found)
+  ├── POST   /tasks           → createTask (201 Created / 400 Bad Request)
+  ├── PUT    /tasks/:id       → [validateTaskId] → updateTask (200 OK / 404 Not Found)
+  └── DELETE /tasks/:id       → [validateTaskId] → deleteTask (200 OK / 404 Not Found)
+  │
+  ▼
+[Custom JSON 404 Handler]  (intercepts undefined endpoints)
+  │
+  ▼
+[Global Error Handling Middleware]  (final middleware: returns 500 without leaking stack traces)
+```
+
+### Endpoints Implemented
+| Method | Endpoint | Description | Status Codes |
+|---|---|---|---|
+| `GET` | `/tasks` | Retrieves all tasks | `200 OK` |
+| `GET` | `/tasks/:id` | Retrieves a specific task by ID | `200 OK`, `400 Bad Request`, `404 Not Found` |
+| `POST` | `/tasks` | Creates a new task | `201 Created`, `400 Bad Request`, `415 Unsupported Media Type` |
+| `PUT` | `/tasks/:id` | Updates an existing task | `200 OK`, `400 Bad Request`, `404 Not Found`, `415 Unsupported Media Type` |
+| `DELETE` | `/tasks/:id` | Deletes a task by ID | `200 OK`, `400 Bad Request`, `404 Not Found` |
+
+### Supplementary Problems Implemented
+1. **Content-Type Validation Middleware:** Rejects `POST`/`PUT` requests without `Content-Type: application/json` with status code `415 Unsupported Media Type`.
+2. **Route-Specific Task ID Validation Middleware:** Validates `:id` parameters ensuring they are positive integers before reaching the controller; returns `400 Bad Request` if invalid.
+3. **Structured JSON 404 Handler:** Catches all undefined paths and returns `{ success: false, error: "Cannot <METHOD> <URL>: Route not found" }` with status code `404`.
+
+---
+
+## 🏆 Richardson Maturity Model Evaluation (RMM Levels 0–3)
+
+Full details are documented in [MATURITY.md](file:///e:/SEM-5/AWDF/Portfolio-/MATURITY.md) and [backend/MATURITY.md](file:///e:/SEM-5/AWDF/Portfolio-/backend/MATURITY.md).
+
+### Summary Table
+| Level | Criterion | Status | Evidence |
+|---|---|:---:|---|
+| **Level 0: Swamp of POX** | Single URI, single HTTP verb (RPC tunneling) | Surpassed | Resource-based architecture with distinct endpoints. |
+| **Level 1: Resources** | Unique URIs for individual resources | Satisfied | `/tasks` for collection, `/tasks/:id` for individual items. |
+| **Level 2: Verbs & Status Codes** | Correct HTTP verbs & standard status codes | Satisfied | `GET`, `POST`, `PUT`, `DELETE` with `200`, `201`, `400`, `404`, `415`, `500`. |
+| **Level 3: Hypermedia (HATEOAS)** | Self-describing responses with navigational `_links` | Awareness Level | Documented complete schema with `_links` (`self`, `update`, `delete`, `collection`) and reference `server-level3.js`. |
 
 ---
 
 ## 🧠 Conceptual Analysis & Viva Questions
 
-### 1. Why is `useEffect` required to trigger a fetch on component mount instead of calling `fetch` directly in the component body?
-Calling `fetch` directly inside the component body executes the network request during every single render. Since updating state inside the fetch callback (`setRepositories`, `setLoading`) triggers a re-render, this results in an **infinite re-render loop**, exhausting API rate limits and freezing the browser.  
-`useEffect` with an empty dependency array (`[]`) tells React to run the side effect **only once after the component has mounted**, isolating side effects from pure render logic.
+### 1. Why must the error handling middleware be defined last in the middleware chain?
+Express executes middleware sequentially in the order registered via `app.use()`. The error-handling middleware has four arguments `(err, req, res, next)`. If an error occurs in any route or preceding middleware (triggered via `next(err)` or an unhandled exception), Express skips all remaining standard middleware and jumps straight to the next error-handling middleware. If the error handler was placed before the routes, it would never be reachable when a route encounters an error.
 
-### 2. What is the difference between a loading state and an error state, and why must both be handled separately?
-- **Loading State:** The request is in flight. The UI should communicate that work is in progress (e.g. `<LoadingSpinner />`) to prevent the user from thinking the application has frozen.
-- **Error State:** The request has terminated abnormally (e.g., 404 Not Found, 403 Rate Limit, or network disconnection). The UI must communicate why the operation failed and offer recovery paths (e.g., a **Retry button**).
-Handling both separately is vital for robust error boundaries and predictable state transitions.
+### 2. What is the difference between `app.use()` and a route-specific middleware?
+- **`app.use()` (Global Middleware):** Runs on every incoming request matching the path prefix across all HTTP verbs (e.g., logging, CORS, body parsing).
+- **Route-Specific Middleware:** Attached directly to specific route definitions (e.g., `router.get('/:id', validateTaskId, getTaskById)`). It runs only for that exact route and method, allowing fine-grained authorization or parameter validation without adding overhead to unrelated routes.
 
-### 3. How would the user experience change if loading and error states were not implemented?
-Without a **loading state**, users would see a jarring blank screen or broken UI elements while waiting for network responses.  
-Without an **error state**, API failures would silently fail, leave the application permanently stuck on a blank screen or spinner, or cause unhandled JavaScript exceptions that crash the entire app.
+### 3. Why is it considered bad practice to send raw error stack traces to the client?
+Sending raw error stack traces leaks critical internal architectural details (e.g., server file paths, database schemas, framework versions, and code structure) to potential attackers. This enables reconnaissance for security vulnerabilities. Instead, servers should log full stack traces internally for debugging and return safe, structured JSON error messages to clients.
+
+### 4. Why is `useEffect` required for data fetching instead of calling `fetch` in the component body?
+Calling `fetch` in the component body runs on every render. Because setting state triggers another render, this creates an **infinite render loop**. `useEffect` with `[]` runs the network side-effect once on component mount.
+
+### 5. Why do most production APIs stop at Level 2 of the Richardson Maturity Model?
+Level 2 provides the greatest ROI (standard caching, idempotency, status codes). Level 3 (HATEOAS) introduces substantial payload size overhead (30–60%), lacks universally agreed client-side hypermedia parsers, and is largely superseded by modern compile-time typed schema tooling like OpenAPI (Swagger) and GraphQL SDKs.
 
 ---
 
 ## 🛠️ Setup & Running Locally
 
-### 1. Clone & Install
+### 1. Frontend (Student Portfolio)
 ```bash
-git clone https://github.com/kaushal-it-345/Portfolio-.git
-cd Portfolio-
+# Install dependencies
 npm install
-```
 
-### 2. Start Development Server
-```bash
+# Start Vite dev server
 npm run dev
 ```
-Open [http://localhost:5173/](http://localhost:5173/) in your web browser.
+Runs at [http://localhost:5173/](http://localhost:5173/).
 
-### 3. Build for Production
+### 2. Backend (Task Management API)
 ```bash
-npm run build
+cd backend
+
+# Install dependencies
+npm install
+
+# Run with Node or Nodemon
+npm start
+# or npm run dev
 ```
-The production bundle will be created in the `dist/` directory.
+Runs at [http://localhost:5000/](http://localhost:5000/).
+
+### 3. Run Automated API Tests
+Use the included [`backend/test.http`](file:///e:/SEM-5/AWDF/Portfolio-/backend/test.http) file with the VS Code REST Client or Thunder Client extension to test all CRUD operations, middleware rejections, and error states.

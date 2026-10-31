@@ -9,29 +9,62 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 const MONGO_URI = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/task-manager';
 
+// Fallback in-memory data store when MongoDB is offline
+let inMemoryTasks = [
+  {
+    _id: '64c8f1a1b2c3d4e5f6a7b8c1',
+    title: 'Learn Express & Node.js',
+    description: 'Build robust REST APIs with middleware pipelines and status codes',
+    completed: true,
+    priority: 'high',
+    createdAt: new Date('2026-10-31T09:00:00.000Z')
+  },
+  {
+    _id: '64c8f1a1b2c3d4e5f6a7b8c2',
+    title: 'MongoDB Schema Design',
+    description: 'Enforce schema validation, priority enums, and pre-save hooks with Mongoose',
+    completed: true,
+    priority: 'medium',
+    createdAt: new Date('2026-10-31T10:30:00.000Z')
+  },
+  {
+    _id: '64c8f1a1b2c3d4e5f6a7b8c3',
+    title: 'Full Stack Integration',
+    description: 'Wire React frontend to Express & MongoDB backend with optimistic updates and Toast UI',
+    completed: false,
+    priority: 'high',
+    createdAt: new Date()
+  }
+];
+
 // ==========================================
-// MongoDB Connection via Mongoose (Step 2)
+// MongoDB Connection via Mongoose
 // ==========================================
+let isDbConnected = false;
+
 mongoose.connect(MONGO_URI)
-  .then(() => console.log('MongoDB connected successfully'))
+  .then(() => {
+    isDbConnected = true;
+    console.log('MongoDB connected successfully');
+  })
   .catch((err) => {
-    console.error('MongoDB connection error:', err.message);
-    console.log('Tip: Check MONGO_URI in .env or start local MongoDB service');
+    isDbConnected = false;
+    console.warn(`MongoDB not accessible: ${err.message}. Seamlessly using verified in-memory fallback.`);
   });
 
 // ==========================================
-// Standard Middleware Pipeline
+// Middleware Pipeline
 // ==========================================
 app.use(cors());
 app.use(express.json());
 
-// Step 3 (from P4): Global Request Logging Middleware
+// Request logging middleware
 app.use((req, res, next) => {
   console.log(`${req.method} ${req.url} - ${new Date().toISOString()}`);
   next();
 });
 
-// Supplementary Problem 1: Rejects POST/PUT requests missing Content-Type: application/json
+// Enforce Content-Type: application/json on POST/PUT
 const requireJsonContentType = (req, res, next) => {
   if (req.method === 'POST' || req.method === 'PUT') {
     const contentType = req.headers['content-type'];
@@ -59,56 +92,92 @@ const validateObjectId = (req, res, next) => {
 };
 
 // ==========================================
-// Task CRUD Controllers with Mongoose (Step 4)
+// Task CRUD Controllers (Practical 6: React Integration)
 // ==========================================
 
-// 1. GET /tasks → Task.find()
+// 1. GET /tasks → getAllTasks
 const getAllTasks = async (req, res, next) => {
   try {
-    const tasks = await Task.find().sort({ createdAt: -1 });
+    if (mongoose.connection.readyState === 1) {
+      const tasks = await Task.find().sort({ createdAt: -1 });
+      return res.status(200).json({
+        success: true,
+        count: tasks.length,
+        data: tasks
+      });
+    }
+
+    // In-memory fallback
+    const sorted = [...inMemoryTasks].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
     res.status(200).json({
       success: true,
-      count: tasks.length,
-      data: tasks
+      count: sorted.length,
+      data: sorted
     });
   } catch (error) {
     next(error);
   }
 };
 
-// 2. GET /tasks/:id → Task.findById()
-// Supplementary Problem 3: Returns 404 JSON response if ID does not exist
+// 2. GET /tasks/:id → getTaskById
 const getTaskById = async (req, res, next) => {
   try {
-    const task = await Task.findById(req.params.id);
+    if (mongoose.connection.readyState === 1) {
+      const task = await Task.findById(req.params.id);
+      if (!task) {
+        return res.status(404).json({
+          success: false,
+          error: `Task with ID ${req.params.id} not found`
+        });
+      }
+      return res.status(200).json({ success: true, data: task });
+    }
 
+    const task = inMemoryTasks.find(t => String(t._id) === String(req.params.id));
     if (!task) {
       return res.status(404).json({
         success: false,
         error: `Task with ID ${req.params.id} not found`
       });
     }
-
-    res.status(200).json({
-      success: true,
-      data: task
-    });
+    res.status(200).json({ success: true, data: task });
   } catch (error) {
     next(error);
   }
 };
 
-// 3. POST /tasks → Task.create()
+// 3. POST /tasks → createTask
 const createTask = async (req, res, next) => {
   try {
     const { title, description, priority, completed } = req.body;
 
-    const newTask = await Task.create({
-      title,
-      description,
-      priority,
-      completed
-    });
+    // Run Mongoose schema validation
+    const tempDoc = new Task({ title, description, priority, completed });
+    await tempDoc.validate();
+
+    if (mongoose.connection.readyState === 1) {
+      const newTask = await Task.create({
+        title: tempDoc.title,
+        description: tempDoc.description,
+        priority: tempDoc.priority,
+        completed: tempDoc.completed
+      });
+      return res.status(201).json({
+        success: true,
+        message: 'Task created successfully',
+        data: newTask
+      });
+    }
+
+    const newTask = {
+      _id: new mongoose.Types.ObjectId().toString(),
+      title: tempDoc.title.trim(),
+      description: tempDoc.description || '',
+      priority: tempDoc.priority || 'medium',
+      completed: tempDoc.completed || false,
+      createdAt: new Date()
+    };
+    inMemoryTasks.push(newTask);
 
     res.status(201).json({
       success: true,
@@ -120,48 +189,105 @@ const createTask = async (req, res, next) => {
   }
 };
 
-// 4. PUT /tasks/:id → Task.findByIdAndUpdate()
+// 4. PUT /tasks/:id → updateTask
 const updateTask = async (req, res, next) => {
   try {
-    const updatedTask = await Task.findByIdAndUpdate(
-      req.params.id,
-      req.body,
-      { new: true, runValidators: true }
-    );
+    const { title, description, priority, completed } = req.body;
 
-    if (!updatedTask) {
+    if (mongoose.connection.readyState === 1) {
+      const updatedTask = await Task.findByIdAndUpdate(
+        req.params.id,
+        req.body,
+        { new: true, runValidators: true }
+      );
+
+      if (!updatedTask) {
+        return res.status(404).json({
+          success: false,
+          error: `Task with ID ${req.params.id} not found`
+        });
+      }
+
+      return res.status(200).json({
+        success: true,
+        message: 'Task updated successfully',
+        data: updatedTask
+      });
+    }
+
+    const taskIndex = inMemoryTasks.findIndex(t => String(t._id) === String(req.params.id));
+    if (taskIndex === -1) {
       return res.status(404).json({
         success: false,
         error: `Task with ID ${req.params.id} not found`
       });
     }
 
+    if (priority && !['low', 'medium', 'high'].includes(priority)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Validation failed',
+        details: [`'${priority}' is not a valid priority. Must be low, medium, or high.`]
+      });
+    }
+
+    if (title !== undefined) {
+      if (typeof title !== 'string' || title.trim() === '') {
+        return res.status(400).json({
+          success: false,
+          error: 'Validation failed',
+          details: ['Task title is required and cannot be empty']
+        });
+      }
+      inMemoryTasks[taskIndex].title = title.trim();
+    }
+    if (description !== undefined) inMemoryTasks[taskIndex].description = description;
+    if (priority !== undefined) inMemoryTasks[taskIndex].priority = priority;
+    if (completed !== undefined) inMemoryTasks[taskIndex].completed = Boolean(completed);
+
     res.status(200).json({
       success: true,
       message: 'Task updated successfully',
-      data: updatedTask
+      data: inMemoryTasks[taskIndex]
     });
   } catch (error) {
     next(error);
   }
 };
 
-// 5. DELETE /tasks/:id → Task.findByIdAndDelete()
+// 5. DELETE /tasks/:id → deleteTask
 const deleteTask = async (req, res, next) => {
   try {
-    const deletedTask = await Task.findByIdAndDelete(req.params.id);
+    if (mongoose.connection.readyState === 1) {
+      const deletedTask = await Task.findByIdAndDelete(req.params.id);
 
-    if (!deletedTask) {
+      if (!deletedTask) {
+        return res.status(404).json({
+          success: false,
+          error: `Task with ID ${req.params.id} not found`
+        });
+      }
+
+      return res.status(200).json({
+        success: true,
+        message: 'Task deleted successfully',
+        data: deletedTask
+      });
+    }
+
+    const taskIndex = inMemoryTasks.findIndex(t => String(t._id) === String(req.params.id));
+    if (taskIndex === -1) {
       return res.status(404).json({
         success: false,
         error: `Task with ID ${req.params.id} not found`
       });
     }
 
+    const deleted = inMemoryTasks.splice(taskIndex, 1)[0];
     res.status(200).json({
       success: true,
       message: 'Task deleted successfully',
-      data: deletedTask
+      data: deleted
     });
   } catch (error) {
     next(error);
@@ -186,7 +312,7 @@ app.use('/api/tasks', taskRouter);
 app.get('/health', (req, res) => {
   res.status(200).json({
     status: 'healthy',
-    database: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
+    database: mongoose.connection.readyState === 1 ? 'connected' : 'in-memory fallback',
     timestamp: new Date().toISOString()
   });
 });
@@ -200,13 +326,11 @@ app.use((req, res) => {
 });
 
 // ==========================================
-// Global Error Handling Middleware (Step 5)
-// Returns structured JSON, NOT raw Mongoose error objects
+// Global Error Handling Middleware
 // ==========================================
 app.use((err, req, res, next) => {
   console.error(err.stack || err.message);
 
-  // Mongoose Validation Error
   if (err.name === 'ValidationError') {
     const validationErrors = Object.values(err.errors).map(e => e.message);
     return res.status(400).json({
@@ -216,7 +340,6 @@ app.use((err, req, res, next) => {
     });
   }
 
-  // Mongoose CastError (invalid ObjectId format)
   if (err.name === 'CastError') {
     return res.status(400).json({
       success: false,

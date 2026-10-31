@@ -11,7 +11,7 @@ function Navigation({ isDarkMode, onToggleTheme }) {
 
     const navLinks = [
         { path: '/', label: 'Home' },
-        { path: '/projects', label: 'Projects' },
+        { path: '/projects', label: 'Tasks' },
         { path: '/contact', label: 'Contact' }
     ];
 

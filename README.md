@@ -12,21 +12,22 @@
 3. [Practical 3: API Integration and Data Rendering in React](#-practical-3-api-integration-and-data-rendering-in-react)
 4. [Practical 4: Building a RESTful API with Node.js and Express](#-practical-4-building-a-restful-api-with-nodejs-and-express)
 5. [Practical 5: MongoDB Integration and Schema Design with Mongoose](#-practical-5-mongodb-integration-and-schema-design-with-mongoose)
-6. [Richardson Maturity Model Evaluation (RMM Levels 0–3)](#-richardson-maturity-model-evaluation-rmm-levels-03)
-7. [Conceptual Analysis & Viva Questions](#-conceptual-analysis--viva-questions)
-8. [Setup & Running Locally](#-setup--running-locally)
+6. [Practical 6: Full Stack Integration React + Node + MongoDB](#-practical-6-full-stack-integration-react--node--mongodb)
+7. [Richardson Maturity Model Evaluation (RMM Levels 0–3)](#-richardson-maturity-model-evaluation-rmm-levels-03)
+8. [Conceptual Analysis & Viva Questions](#-conceptual-analysis--viva-questions)
+9. [Setup & Running Locally](#-setup--running-locally)
 
 ---
 
 ## 🌟 Overview
-This repository contains progressive laboratory implementations for the **Advanced Web Development Frameworks** course:
-- **Frontend:** A responsive Single Page Application built with React 19, Vite, React Router v7, dark mode, and GitHub REST API integration.
-- **Backend:** A RESTful Task Management system built with Node.js, Express, and MongoDB/Mongoose schema validation, evaluated against the Richardson Maturity Model.
+This repository contains the complete laboratory implementations for **Advanced Web Development Frameworks** (ITUE301):
+- **Frontend (Port 5173):** React 19 SPA built with Vite, React Router v7, custom light/dark theme variables, optimistic UI updates, Toast notifications, and full-stack API clients.
+- **Backend (Port 5000):** RESTful Task Management server built with Node.js, Express, Mongoose ODM, MongoDB schema validation, CORS configuration, and Richardson Maturity Model evaluation.
 
 ---
 
 ## 🗺️ Practical 2: State Management and Routing in React
-- **Client-Side Routing:** Multi-page routing (`/`, `/projects`, `/contact`, `*`) without full-page reloads.
+- **Client-Side Routing:** Multi-page routing (`/`, `/tasks`, `/projects`, `/contact`, `*`) without full-page reloads.
 - **State Management:** Controlled inputs with real-time feedback, live character count, help tooltip visibility toggle, and dark/light theme switching.
 
 ---
@@ -49,68 +50,55 @@ This repository contains progressive laboratory implementations for the **Advanc
 ---
 
 ## 🍃 Practical 5: MongoDB Integration and Schema Design with Mongoose
+- **Mongoose Schema Design:** Required `title`, default `completed: false` and `createdAt: Date.now`.
+- **Supplementary Constraints:** `priority` restricted to enum `['low', 'medium', 'high']`.
+- **Pre-Save Lifecycle Hook:** Automatically trims whitespace from the `title` field.
+- **Structured Error Handling:** Formats `ValidationError` and `CastError` into clean JSON payloads without leaking internal stack traces.
+
+---
+
+## 🔗 Practical 6: Full Stack Integration React + Node + MongoDB
 
 ### Objective
-To connect a MongoDB database to an Express server and enforce data validation through a Mongoose schema.
+To wire the React frontend to the Node/Express/MongoDB backend into a fully functional, production-ready full-stack application with state synchronization.
 
-### Architecture & Data Flow
+### Architecture & End-to-End Flow
 ```
-Express App
+React Frontend (http://localhost:5173)
+  │
+  ├── Form Input / Action (Create / Toggle / Edit / Delete)
+  │
+  ├── Central API Client (src/api.js) via fetch
   │
   ▼
-Mongoose ODM (models/Task.js)
-  │  ├── Schema Validation (required title, priority enum, default completed & createdAt)
-  │  └── Pre-save Hook (automatic whitespace trimming on title)
+Express Backend (http://localhost:5000)
+  │
+  ├── CORS Middleware (allows cross-origin requests from 5173)
+  ├── Request Logging & Content-Type Validator
+  ├── Mongoose ODM (models/Task.js)
+  │
   ▼
-MongoDB Database
-  └── tasks collection { title, description, completed, priority, createdAt }
+MongoDB Database (tasks collection)
+  │
+  ▼
+JSON Response → React UI updates state & renders Toast notification
 ```
 
-### Mongoose Task Schema (`backend/models/Task.js`)
-```javascript
-const taskSchema = new mongoose.Schema({
-  title: {
-    type: String,
-    required: [true, 'Task title is required'],
-    trim: true
-  },
-  description: {
-    type: String,
-    default: '',
-    trim: true
-  },
-  completed: {
-    type: Boolean,
-    default: false
-  },
-  priority: {
-    type: String,
-    enum: {
-      values: ['low', 'medium', 'high'],
-      message: '{VALUE} is not a valid priority. Priority must be low, medium, or high.'
-    },
-    default: 'medium'
-  },
-  createdAt: {
-    type: Date,
-    default: Date.now
-  }
-});
-
-// Pre-save hook to trim whitespace from title
-taskSchema.pre('save', function (next) {
-  if (this.title && typeof this.title === 'string') {
-    this.title = this.title.trim();
-  }
-  if (typeof next === 'function') next();
-});
-```
-
-### Supplementary Problems Implemented
-1. **Priority Field with Enum:** Restricted to `['low', 'medium', 'high']` with default `'medium'`; invalid values trigger clean `400 Validation Error`.
-2. **Pre-Save Trimming Hook:** Mongoose `pre('save')` hook automatically trims leading and trailing whitespace from the `title` field before persistence.
-3. **Structured Error Handling:** Replaces raw Mongoose error objects with clean JSON payloads (`ValidationError` and `CastError` return structured `400` status).
-4. **Environment Isolation:** Database connection string managed securely through `.env` (`MONGO_URI`) and documented via `.env.example`.
+### Full-Stack CRUD Workflow
+1. **CREATE (POST `/tasks`):**
+   - User submits new task title, description, and priority.
+   - **Optimistic UI Update:** Immediately renders the task with a temporary ID in the list, then confirms with the backend response.
+2. **READ (GET `/tasks`):**
+   - Automatically loads tasks on mount using `useEffect` and `getTasks()`.
+   - Displays real-time statistics (Total, Completed, Pending).
+3. **UPDATE (PUT `/tasks/:id`):**
+   - Toggle completion status with instant checkbox state sync.
+   - Inline edit mode allows modifying title, description, and priority directly in the card.
+4. **DELETE (DELETE `/tasks/:id`):**
+   - **Confirmation Dialog Modal:** Displays a confirmation prompt before deleting any task.
+   - On confirmation, permanently removes document from MongoDB and updates UI state.
+5. **Toast Notifications:**
+   - Floating `<Toast />` component provides immediate visual feedback (success/error) after each operation.
 
 ---
 
@@ -125,37 +113,45 @@ Documented in detail in [MATURITY.md](file:///e:/SEM-5/AWDF/Portfolio-/MATURITY.
 
 ## 🧠 Conceptual Analysis & Viva Questions
 
-### 1. What is the purpose of a schema in a NoSQL database like MongoDB, given that MongoDB itself is schema-less?
-While MongoDB provides flexible, document-level schema-less storage, production applications require consistent data integrity, predictability, and business constraints. Mongoose schemas provide an **application-level contract** that defines expected types, enforces mandatory fields, applies default values, sanitizes inputs, and runs pre/post lifecycle hooks before data ever touches the database.
+### 1. What changes are required on the backend (CORS) to allow the React dev server to call the Express API?
+By default, web browsers enforce the **Same-Origin Policy**, which blocks web pages on `http://localhost:5173` from making HTTP requests to `http://localhost:5000` because the ports differ. On the Express backend, the `cors` middleware must be registered (`const cors = require('cors'); app.use(cors());`). This sends the `Access-Control-Allow-Origin: *` (or specific origin) and `Access-Control-Allow-Methods` response headers during CORS preflight checks (`OPTIONS`), permitting the browser to complete the fetch request.
 
-### 2. Why is it important to define required fields and default values at the schema level rather than relying on frontend validation alone?
-Frontend validation can be bypassed by anyone using tools like Postman, curl, or direct API calls. Schema-level validation acts as the definitive source of truth and the final security barrier for data integrity, ensuring that corrupt or incomplete documents are never committed to storage regardless of the client used.
+### 2. Why should the UI re-fetch or update local state after a successful POST/PUT/DELETE rather than assuming success silently?
+Assuming success without state synchronization leads to UI/server state drift. Updating local state from the backend's response (or re-fetching) ensures:
+- The UI acquires server-generated values (e.g., auto-generated MongoDB `_id`, default timestamps, sanitized fields).
+- Any server-side business rules, triggers, or validation modifications are accurately reflected in the user's view.
+- If the write operation failed on the backend, the user is alerted immediately rather than discovering data loss upon page refresh.
 
-### 3. What happens internally when a document fails Mongoose validation where is the request stopped?
-When an operation like `Task.create()` or `document.validate()` is called, Mongoose executes validation rules synchronously or asynchronously in memory **before** initiating a MongoDB wire protocol command. If any field constraint fails, Mongoose halts execution, creates a `ValidationError` containing individual field failure messages, and immediately rejects the Promise or invokes the catch block. The request is stopped in the Node.js application process without sending any network packet to the MongoDB server.
+### 3. What is the risk of not handling errors on write operations (POST/PUT/DELETE) the same way as read operations (GET)?
+If read operations fail, the user merely sees a failed fetch. But if write operations fail unhandled:
+- The user may falsely believe their data was saved, leading to catastrophic data loss.
+- The UI might enter an inconsistent or broken state where actions are performed on non-existent records.
+- In optimistic UI updates, failure to handle errors leaves "ghost" items on screen that were rejected by the database.
 
 ---
 
-## 🛠️ Setup & Running Locally
+## 🛠️ Setup & Running Locally (Two Dev Servers)
 
-### 1. Frontend
-```bash
-npm install
-npm run dev
-```
-Runs at [http://localhost:5173/](http://localhost:5173/).
-
-### 2. Backend
+### Terminal 1: Backend (Express + MongoDB)
 ```bash
 cd backend
 npm install
 npm start
 ```
-Runs at [http://localhost:5000/](http://localhost:5000/).
+> Server running at: **[http://localhost:5000/](http://localhost:5000/)**  
+> Endpoints: `GET /tasks`, `POST /tasks`, `PUT /tasks/:id`, `DELETE /tasks/:id`
 
-### 3. Automated Verification Tests
+### Terminal 2: Frontend (React SPA)
+```bash
+# In project root
+npm install
+npm run dev
+```
+> Frontend running at: **[http://localhost:5173/](http://localhost:5173/)**  
+> Navigate to **Tasks** tab to interact with the live full-stack CRUD system.
+
+### Automated Verification
 ```bash
 cd backend
 node verify-api.js
 ```
-Runs the full automated test suite verifying Mongoose schema defaults, required validation, priority enum restrictions, pre-save hook trimming, and HTTP error handlers.

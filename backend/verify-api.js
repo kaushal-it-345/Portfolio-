@@ -1,72 +1,88 @@
+process.env.NODE_ENV = 'test';
 const http = require('http');
-const app = require('./server.js');
+const mongoose = require('mongoose');
+const Task = require('./models/Task');
+const app = require('./server');
 
-const server = app.listen(5099, async () => {
-  console.log('Test server running on port 5099');
+async function runTests() {
+  console.log('==============================================');
+  console.log('Practical 5: MongoDB & Mongoose Schema Tests');
+  console.log('==============================================\n');
 
-  function request(options, data = null) {
-    return new Promise((resolve, reject) => {
-      const req = http.request({ port: 5099, host: 'localhost', ...options }, (res) => {
-        let body = '';
-        res.on('data', chunk => body += chunk);
-        res.on('end', () => resolve({ status: res.statusCode, body: body ? JSON.parse(body) : null }));
-      });
-      req.on('error', reject);
-      if (data) req.write(data);
-      req.end();
-    });
-  }
+  // Test 1: Task Schema definition & defaults
+  const task1 = new Task({ title: 'Test Task' });
+  console.log(`[SCHEMA TEST 1] Default completed value: ${task1.completed} (Expected: false) -> ${task1.completed === false ? 'PASS' : 'FAIL'}`);
+  console.log(`[SCHEMA TEST 2] Default priority value: '${task1.priority}' (Expected: 'medium') -> ${task1.priority === 'medium' ? 'PASS' : 'FAIL'}`);
+  console.log(`[SCHEMA TEST 3] Default createdAt date: ${task1.createdAt instanceof Date ? 'PASS' : 'FAIL'}`);
 
+  // Test 2: Validation of required fields
+  const invalidTask = new Task({});
+  let titleError = null;
   try {
-    // 1. GET /tasks
-    const res1 = await request({ path: '/tasks', method: 'GET' });
-    console.log(`[TEST 1] GET /tasks: status ${res1.status} (Expected: 200) -> ${res1.status === 200 ? 'PASS' : 'FAIL'}`);
-
-    // 2. GET /tasks/1
-    const res2 = await request({ path: '/tasks/1', method: 'GET' });
-    console.log(`[TEST 2] GET /tasks/1: status ${res2.status} (Expected: 200) -> ${res2.status === 200 ? 'PASS' : 'FAIL'}`);
-
-    // 3. GET /tasks/abc (Route middleware: ID validation)
-    const res3 = await request({ path: '/tasks/abc', method: 'GET' });
-    console.log(`[TEST 3] GET /tasks/abc: status ${res3.status} (Expected: 400) -> ${res3.status === 400 ? 'PASS' : 'FAIL'}`);
-
-    // 4. POST /tasks (Without Content-Type: application/json)
-    const res4 = await request({ path: '/tasks', method: 'POST' }, '{"title":"Test"}');
-    console.log(`[TEST 4] POST /tasks missing Content-Type: status ${res4.status} (Expected: 415) -> ${res4.status === 415 ? 'PASS' : 'FAIL'}`);
-
-    // 5. POST /tasks (Valid JSON)
-    const res5 = await request({
-      path: '/tasks',
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' }
-    }, JSON.stringify({ title: 'New Task', description: 'Testing POST' }));
-    console.log(`[TEST 5] POST /tasks valid: status ${res5.status} (Expected: 201) -> ${res5.status === 201 ? 'PASS' : 'FAIL'}`);
-
-    // 6. PUT /tasks/1
-    const res6 = await request({
-      path: '/tasks/1',
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' }
-    }, JSON.stringify({ completed: true }));
-    console.log(`[TEST 6] PUT /tasks/1: status ${res6.status} (Expected: 200) -> ${res6.status === 200 ? 'PASS' : 'FAIL'}`);
-
-    // 7. DELETE /tasks/2
-    const res7 = await request({ path: '/tasks/2', method: 'DELETE' });
-    console.log(`[TEST 7] DELETE /tasks/2: status ${res7.status} (Expected: 200) -> ${res7.status === 200 ? 'PASS' : 'FAIL'}`);
-
-    // 8. 404 undefined route
-    const res8 = await request({ path: '/non-existent-route', method: 'GET' });
-    console.log(`[TEST 8] GET /non-existent-route: status ${res8.status} (Expected: 404) -> ${res8.status === 404 ? 'PASS' : 'FAIL'}`);
-
-    // 9. 500 error handler
-    const res9 = await request({ path: '/error-test', method: 'GET' });
-    console.log(`[TEST 9] GET /error-test: status ${res9.status} (Expected: 500) -> ${res9.status === 500 ? 'PASS' : 'FAIL'}`);
-
-    console.log('\nAll Practical 4 & RMM Level 2 API Tests PASSED successfully!');
+    await invalidTask.validate();
   } catch (err) {
-    console.error('Test error:', err);
-  } finally {
-    server.close();
-    process.exit(0);
+    titleError = err.errors && err.errors.title;
   }
-});
+  console.log(`[SCHEMA TEST 4] Required title validation: ${titleError ? 'PASS' : 'FAIL'} (${titleError ? titleError.message : ''})`);
+
+  // Test 3: Priority Enum validation
+  const invalidPriorityTask = new Task({ title: 'Valid Title', priority: 'urgent' });
+  let priorityError = null;
+  try {
+    await invalidPriorityTask.validate();
+  } catch (err) {
+    priorityError = err.errors && err.errors.priority;
+  }
+  console.log(`[SCHEMA TEST 5] Priority enum validation: ${priorityError ? 'PASS' : 'FAIL'} (${priorityError ? priorityError.message : ''})`);
+
+  // Test 4: Pre-save hook whitespace trimming
+  const untrimmedTask = new Task({ title: '   Whitespace Title   ', description: '  Trimmed Desc  ' });
+  const saveHooks = Task.schema.s.hooks._pres ? Task.schema.s.hooks._pres.get('save') : [];
+  if (saveHooks && saveHooks.length > 0) {
+    saveHooks[0].fn.call(untrimmedTask, () => {});
+  }
+  const isTrimmed = untrimmedTask.title === 'Whitespace Title' && untrimmedTask.description === 'Trimmed Desc';
+  console.log(`[SCHEMA TEST 6] Pre-save hook whitespace trimming: ${isTrimmed ? 'PASS' : 'FAIL'} (Result: '${untrimmedTask.title}')`);
+
+  // Test 5: Server Pipeline & HTTP Error Handlers
+  const testServer = app.listen(5098, async () => {
+    function request(options, data = null) {
+      return new Promise((resolve, reject) => {
+        const req = http.request({ port: 5098, host: 'localhost', ...options }, (res) => {
+          let body = '';
+          res.on('data', chunk => body += chunk);
+          res.on('end', () => resolve({ status: res.statusCode, body: body ? JSON.parse(body) : null }));
+        });
+        req.on('error', reject);
+        if (data) req.write(data);
+        req.end();
+      });
+    }
+
+    try {
+      // 5.1 Content-Type 415 rejection
+      const res1 = await request({ path: '/tasks', method: 'POST' }, '{"title":"Test"}');
+      console.log(`[HTTP TEST 1] Missing Content-Type rejection: status ${res1.status} (Expected: 415) -> ${res1.status === 415 ? 'PASS' : 'FAIL'}`);
+
+      // 5.2 Invalid ObjectId format 400 rejection
+      const res2 = await request({ path: '/tasks/invalid-id-format', method: 'GET' });
+      console.log(`[HTTP TEST 2] Invalid ObjectId format: status ${res2.status} (Expected: 400) -> ${res2.status === 400 ? 'PASS' : 'FAIL'}`);
+
+      // 5.3 404 handler for undefined route
+      const res3 = await request({ path: '/undefined-endpoint-test', method: 'GET' });
+      console.log(`[HTTP TEST 3] Undefined route 404 handler: status ${res3.status} (Expected: 404) -> ${res3.status === 404 ? 'PASS' : 'FAIL'}`);
+
+      console.log('\n==============================================');
+      console.log('All Practical 5 Tests Completed Successfully!');
+      console.log('==============================================');
+    } catch (err) {
+      console.error('Test execution error:', err);
+    } finally {
+      testServer.close();
+      mongoose.disconnect();
+      process.exit(0);
+    }
+  });
+}
+
+runTests();

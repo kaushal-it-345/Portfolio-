@@ -11,155 +11,151 @@
 2. [Practical 2: State Management and Routing in React](#-practical-2-state-management-and-routing-in-react)
 3. [Practical 3: API Integration and Data Rendering in React](#-practical-3-api-integration-and-data-rendering-in-react)
 4. [Practical 4: Building a RESTful API with Node.js and Express](#-practical-4-building-a-restful-api-with-nodejs-and-express)
-5. [Richardson Maturity Model Evaluation (RMM Levels 0–3)](#-richardson-maturity-model-evaluation-rmm-levels-03)
-6. [Conceptual Analysis & Viva Questions](#-conceptual-analysis--viva-questions)
-7. [Setup & Running Locally](#-setup--running-locally)
+5. [Practical 5: MongoDB Integration and Schema Design with Mongoose](#-practical-5-mongodb-integration-and-schema-design-with-mongoose)
+6. [Richardson Maturity Model Evaluation (RMM Levels 0–3)](#-richardson-maturity-model-evaluation-rmm-levels-03)
+7. [Conceptual Analysis & Viva Questions](#-conceptual-analysis--viva-questions)
+8. [Setup & Running Locally](#-setup--running-locally)
 
 ---
 
 ## 🌟 Overview
-This repository contains the progressive laboratory implementations for the **Advanced Web Development Frameworks** course, featuring:
-- **Frontend:** A modern, responsive React 19 SPA built with Vite, React Router v7, custom themes, and live GitHub REST API feeds.
-- **Backend:** A RESTful Task Management API built with Node.js, Express, middleware pipelines, and evaluation against the Richardson Maturity Model.
+This repository contains progressive laboratory implementations for the **Advanced Web Development Frameworks** course:
+- **Frontend:** A responsive Single Page Application built with React 19, Vite, React Router v7, dark mode, and GitHub REST API integration.
+- **Backend:** A RESTful Task Management system built with Node.js, Express, and MongoDB/Mongoose schema validation, evaluated against the Richardson Maturity Model.
 
 ---
 
 ## 🗺️ Practical 2: State Management and Routing in React
-
-### Objective
-To implement reactive state management using `useState` and multi-page client-side navigation using React Router without full page reloads.
-
-### Routes Implemented
-| Path | Component | Description |
-|---|---|---|
-| `/` | `Home.jsx` | Landing page featuring Header, About Me, and Skills showcase |
-| `/projects` | `Projects.jsx` | Dynamic project showcase fetching repositories via GitHub REST API |
-| `/contact` | `Contact.jsx` | Interactive contact form with real-time input capture and character counter |
-| `*` | `NotFound.jsx` | Custom 404 error page for undefined routes with return navigation |
+- **Client-Side Routing:** Multi-page routing (`/`, `/projects`, `/contact`, `*`) without full-page reloads.
+- **State Management:** Controlled inputs with real-time feedback, live character count, help tooltip visibility toggle, and dark/light theme switching.
 
 ---
 
 ## 🌐 Practical 3: API Integration and Data Rendering in React
-
-### Objective
-To consume a public REST API in React and handle asynchronous data with loading, success, and error states.
-
-### Architecture & Data Flow
-```
-Projects.jsx
-├── useEffect() → triggers fetch on component mount
-├── useState: repositories, loading, error, searchTerm
-├── [loading]  → <LoadingSpinner />
-├── [error]    → <ErrorMessage message={error} onRetry={fetchRepositories} />
-└── [success]  → Filtered Repository Cards (Name, ⭐ Stars, URL, Language)
-```
+- **Asynchronous Data Fetching:** Consumes public GitHub REST API (`octocat/repos`) on component mount via `useEffect`.
+- **Request States:** Handles `loading` with `<LoadingSpinner />` and `error` with `<ErrorMessage />`.
+- **Supplementary Features:** Search filter input, star count (`stargazers_count`) display, retry mechanism, and error simulation toggle.
 
 ---
 
 ## 🚀 Practical 4: Building a RESTful API with Node.js and Express
+- **Express Middleware Pipeline:** Global request logging, JSON body parsing, and centralized error handling.
+- **CRUD Operations:** Complete RESTful endpoints for task resources.
+- **Supplementary Middleware:**
+  - Content-Type enforcement (`415 Unsupported Media Type` if missing `application/json` on `POST`/`PUT`).
+  - Route-specific task ID format validation (`400 Bad Request`).
+  - Structured JSON 404 handler for undefined routes.
+
+---
+
+## 🍃 Practical 5: MongoDB Integration and Schema Design with Mongoose
 
 ### Objective
-To design and implement a RESTful backend server with complete CRUD endpoints using Express middleware pipelines.
+To connect a MongoDB database to an Express server and enforce data validation through a Mongoose schema.
 
-### Architecture / Diagram
+### Architecture & Data Flow
 ```
-Client (Postman / Browser / Thunder Client)
+Express App
   │
   ▼
-[Request Logging Middleware]  (logs method, url, timestamp)
-  │
+Mongoose ODM (models/Task.js)
+  │  ├── Schema Validation (required title, priority enum, default completed & createdAt)
+  │  └── Pre-save Hook (automatic whitespace trimming on title)
   ▼
-[Content-Type Validation Middleware]  (enforces application/json on POST/PUT -> 415)
-  │
-  ▼
-Express Router (/tasks and /api/tasks)
-  ├── GET    /tasks           → getAllTasks (200 OK)
-  ├── GET    /tasks/:id       → [validateTaskId] → getTaskById (200 OK / 404 Not Found)
-  ├── POST   /tasks           → createTask (201 Created / 400 Bad Request)
-  ├── PUT    /tasks/:id       → [validateTaskId] → updateTask (200 OK / 404 Not Found)
-  └── DELETE /tasks/:id       → [validateTaskId] → deleteTask (200 OK / 404 Not Found)
-  │
-  ▼
-[Custom JSON 404 Handler]  (intercepts undefined endpoints)
-  │
-  ▼
-[Global Error Handling Middleware]  (final middleware: returns 500 without leaking stack traces)
+MongoDB Database
+  └── tasks collection { title, description, completed, priority, createdAt }
 ```
 
-### Endpoints Implemented
-| Method | Endpoint | Description | Status Codes |
-|---|---|---|---|
-| `GET` | `/tasks` | Retrieves all tasks | `200 OK` |
-| `GET` | `/tasks/:id` | Retrieves a specific task by ID | `200 OK`, `400 Bad Request`, `404 Not Found` |
-| `POST` | `/tasks` | Creates a new task | `201 Created`, `400 Bad Request`, `415 Unsupported Media Type` |
-| `PUT` | `/tasks/:id` | Updates an existing task | `200 OK`, `400 Bad Request`, `404 Not Found`, `415 Unsupported Media Type` |
-| `DELETE` | `/tasks/:id` | Deletes a task by ID | `200 OK`, `400 Bad Request`, `404 Not Found` |
+### Mongoose Task Schema (`backend/models/Task.js`)
+```javascript
+const taskSchema = new mongoose.Schema({
+  title: {
+    type: String,
+    required: [true, 'Task title is required'],
+    trim: true
+  },
+  description: {
+    type: String,
+    default: '',
+    trim: true
+  },
+  completed: {
+    type: Boolean,
+    default: false
+  },
+  priority: {
+    type: String,
+    enum: {
+      values: ['low', 'medium', 'high'],
+      message: '{VALUE} is not a valid priority. Priority must be low, medium, or high.'
+    },
+    default: 'medium'
+  },
+  createdAt: {
+    type: Date,
+    default: Date.now
+  }
+});
+
+// Pre-save hook to trim whitespace from title
+taskSchema.pre('save', function (next) {
+  if (this.title && typeof this.title === 'string') {
+    this.title = this.title.trim();
+  }
+  if (typeof next === 'function') next();
+});
+```
 
 ### Supplementary Problems Implemented
-1. **Content-Type Validation Middleware:** Rejects `POST`/`PUT` requests without `Content-Type: application/json` with status code `415 Unsupported Media Type`.
-2. **Route-Specific Task ID Validation Middleware:** Validates `:id` parameters ensuring they are positive integers before reaching the controller; returns `400 Bad Request` if invalid.
-3. **Structured JSON 404 Handler:** Catches all undefined paths and returns `{ success: false, error: "Cannot <METHOD> <URL>: Route not found" }` with status code `404`.
+1. **Priority Field with Enum:** Restricted to `['low', 'medium', 'high']` with default `'medium'`; invalid values trigger clean `400 Validation Error`.
+2. **Pre-Save Trimming Hook:** Mongoose `pre('save')` hook automatically trims leading and trailing whitespace from the `title` field before persistence.
+3. **Structured Error Handling:** Replaces raw Mongoose error objects with clean JSON payloads (`ValidationError` and `CastError` return structured `400` status).
+4. **Environment Isolation:** Database connection string managed securely through `.env` (`MONGO_URI`) and documented via `.env.example`.
 
 ---
 
 ## 🏆 Richardson Maturity Model Evaluation (RMM Levels 0–3)
-
-Full details are documented in [MATURITY.md](file:///e:/SEM-5/AWDF/Portfolio-/MATURITY.md) and [backend/MATURITY.md](file:///e:/SEM-5/AWDF/Portfolio-/backend/MATURITY.md).
-
-### Summary Table
-| Level | Criterion | Status | Evidence |
-|---|---|:---:|---|
-| **Level 0: Swamp of POX** | Single URI, single HTTP verb (RPC tunneling) | Surpassed | Resource-based architecture with distinct endpoints. |
-| **Level 1: Resources** | Unique URIs for individual resources | Satisfied | `/tasks` for collection, `/tasks/:id` for individual items. |
-| **Level 2: Verbs & Status Codes** | Correct HTTP verbs & standard status codes | Satisfied | `GET`, `POST`, `PUT`, `DELETE` with `200`, `201`, `400`, `404`, `415`, `500`. |
-| **Level 3: Hypermedia (HATEOAS)** | Self-describing responses with navigational `_links` | Awareness Level | Documented complete schema with `_links` (`self`, `update`, `delete`, `collection`) and reference `server-level3.js`. |
+Documented in detail in [MATURITY.md](file:///e:/SEM-5/AWDF/Portfolio-/MATURITY.md).
+- **Level 0 (Swamp of POX):** Surpassed via resource-specific endpoints.
+- **Level 1 (Resources):** Satisfied via `/tasks` and `/tasks/:id`.
+- **Level 2 (HTTP Verbs & Status Codes):** Satisfied using standard `GET`, `POST`, `PUT`, `DELETE` with `200`, `201`, `400`, `404`, `415`, `500`.
+- **Level 3 (HATEOAS):** Full hypermedia response structures documented with `_links` (`self`, `update`, `delete`, `collection`).
 
 ---
 
 ## 🧠 Conceptual Analysis & Viva Questions
 
-### 1. Why must the error handling middleware be defined last in the middleware chain?
-Express executes middleware sequentially in the order registered via `app.use()`. The error-handling middleware has four arguments `(err, req, res, next)`. If an error occurs in any route or preceding middleware (triggered via `next(err)` or an unhandled exception), Express skips all remaining standard middleware and jumps straight to the next error-handling middleware. If the error handler was placed before the routes, it would never be reachable when a route encounters an error.
+### 1. What is the purpose of a schema in a NoSQL database like MongoDB, given that MongoDB itself is schema-less?
+While MongoDB provides flexible, document-level schema-less storage, production applications require consistent data integrity, predictability, and business constraints. Mongoose schemas provide an **application-level contract** that defines expected types, enforces mandatory fields, applies default values, sanitizes inputs, and runs pre/post lifecycle hooks before data ever touches the database.
 
-### 2. What is the difference between `app.use()` and a route-specific middleware?
-- **`app.use()` (Global Middleware):** Runs on every incoming request matching the path prefix across all HTTP verbs (e.g., logging, CORS, body parsing).
-- **Route-Specific Middleware:** Attached directly to specific route definitions (e.g., `router.get('/:id', validateTaskId, getTaskById)`). It runs only for that exact route and method, allowing fine-grained authorization or parameter validation without adding overhead to unrelated routes.
+### 2. Why is it important to define required fields and default values at the schema level rather than relying on frontend validation alone?
+Frontend validation can be bypassed by anyone using tools like Postman, curl, or direct API calls. Schema-level validation acts as the definitive source of truth and the final security barrier for data integrity, ensuring that corrupt or incomplete documents are never committed to storage regardless of the client used.
 
-### 3. Why is it considered bad practice to send raw error stack traces to the client?
-Sending raw error stack traces leaks critical internal architectural details (e.g., server file paths, database schemas, framework versions, and code structure) to potential attackers. This enables reconnaissance for security vulnerabilities. Instead, servers should log full stack traces internally for debugging and return safe, structured JSON error messages to clients.
-
-### 4. Why is `useEffect` required for data fetching instead of calling `fetch` in the component body?
-Calling `fetch` in the component body runs on every render. Because setting state triggers another render, this creates an **infinite render loop**. `useEffect` with `[]` runs the network side-effect once on component mount.
-
-### 5. Why do most production APIs stop at Level 2 of the Richardson Maturity Model?
-Level 2 provides the greatest ROI (standard caching, idempotency, status codes). Level 3 (HATEOAS) introduces substantial payload size overhead (30–60%), lacks universally agreed client-side hypermedia parsers, and is largely superseded by modern compile-time typed schema tooling like OpenAPI (Swagger) and GraphQL SDKs.
+### 3. What happens internally when a document fails Mongoose validation where is the request stopped?
+When an operation like `Task.create()` or `document.validate()` is called, Mongoose executes validation rules synchronously or asynchronously in memory **before** initiating a MongoDB wire protocol command. If any field constraint fails, Mongoose halts execution, creates a `ValidationError` containing individual field failure messages, and immediately rejects the Promise or invokes the catch block. The request is stopped in the Node.js application process without sending any network packet to the MongoDB server.
 
 ---
 
 ## 🛠️ Setup & Running Locally
 
-### 1. Frontend (Student Portfolio)
+### 1. Frontend
 ```bash
-# Install dependencies
 npm install
-
-# Start Vite dev server
 npm run dev
 ```
 Runs at [http://localhost:5173/](http://localhost:5173/).
 
-### 2. Backend (Task Management API)
+### 2. Backend
 ```bash
 cd backend
-
-# Install dependencies
 npm install
-
-# Run with Node or Nodemon
 npm start
-# or npm run dev
 ```
 Runs at [http://localhost:5000/](http://localhost:5000/).
 
-### 3. Run Automated API Tests
-Use the included [`backend/test.http`](file:///e:/SEM-5/AWDF/Portfolio-/backend/test.http) file with the VS Code REST Client or Thunder Client extension to test all CRUD operations, middleware rejections, and error states.
+### 3. Automated Verification Tests
+```bash
+cd backend
+node verify-api.js
+```
+Runs the full automated test suite verifying Mongoose schema defaults, required validation, priority enum restrictions, pre-save hook trimming, and HTTP error handlers.

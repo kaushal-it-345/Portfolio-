@@ -1,38 +1,37 @@
 const express = require('express');
 const cors = require('cors');
+const mongoose = require('mongoose');
+require('dotenv').config();
+
+const Task = require('./models/Task');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+const MONGO_URI = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/task-manager';
 
 // ==========================================
-// In-Memory Data Store (Temporary Storage)
+// MongoDB Connection via Mongoose (Step 2)
 // ==========================================
-let tasks = [
-  { id: 1, title: 'Learn Express', description: 'Study Express.js fundamentals', completed: false },
-  { id: 2, title: 'Build Task API', description: 'Create REST endpoints for tasks', completed: false },
-  { id: 3, title: 'Add Error Handling', description: 'Implement global error handler', completed: false }
-];
-
-let nextId = 4;
+mongoose.connect(MONGO_URI)
+  .then(() => console.log('MongoDB connected successfully'))
+  .catch((err) => {
+    console.error('MongoDB connection error:', err.message);
+    console.log('Tip: Check MONGO_URI in .env or start local MongoDB service');
+  });
 
 // ==========================================
-// Standard Middleware
+// Standard Middleware Pipeline
 // ==========================================
-
-// Enable CORS for frontend integration
 app.use(cors());
-
-// Parse incoming JSON request bodies (req.body)
 app.use(express.json());
 
-// Step 3: Global Request Logging Middleware
-// Logs method, URL, and timestamp for every incoming request
+// Step 3 (from P4): Global Request Logging Middleware
 app.use((req, res, next) => {
   console.log(`${req.method} ${req.url} - ${new Date().toISOString()}`);
   next();
 });
 
-// Supplementary Problem 1: Middleware that rejects POST/PUT requests missing Content-Type: application/json
+// Supplementary Problem 1: Rejects POST/PUT requests missing Content-Type: application/json
 const requireJsonContentType = (req, res, next) => {
   if (req.method === 'POST' || req.method === 'PUT') {
     const contentType = req.headers['content-type'];
@@ -45,33 +44,28 @@ const requireJsonContentType = (req, res, next) => {
   }
   next();
 };
-
-// Apply Content-Type validator globally for POST/PUT requests
 app.use(requireJsonContentType);
 
-// Supplementary Problem 2: Route-specific middleware that validates task ID format
-const validateTaskId = (req, res, next) => {
+// Route-Specific Middleware: Validate MongoDB ObjectId format
+const validateObjectId = (req, res, next) => {
   const { id } = req.params;
-  const parsedId = Number(id);
-
-  if (!Number.isInteger(parsedId) || parsedId <= 0) {
+  if (!mongoose.Types.ObjectId.isValid(id)) {
     return res.status(400).json({
       success: false,
-      error: `Invalid task ID format: '${id}'. Task ID must be a positive integer.`
+      error: `Invalid task ID format: '${id}'. Must be a valid 24-character hexadecimal ObjectId.`
     });
   }
-
-  req.taskId = parsedId;
   next();
 };
 
 // ==========================================
-// Task Controller Functions
+// Task CRUD Controllers with Mongoose (Step 4)
 // ==========================================
 
-// 1. GET /tasks → getAllTasks
-const getAllTasks = (req, res, next) => {
+// 1. GET /tasks → Task.find()
+const getAllTasks = async (req, res, next) => {
   try {
+    const tasks = await Task.find().sort({ createdAt: -1 });
     res.status(200).json({
       success: true,
       count: tasks.length,
@@ -82,15 +76,16 @@ const getAllTasks = (req, res, next) => {
   }
 };
 
-// 2. GET /tasks/:id → getTaskById
-const getTaskById = (req, res, next) => {
+// 2. GET /tasks/:id → Task.findById()
+// Supplementary Problem 3: Returns 404 JSON response if ID does not exist
+const getTaskById = async (req, res, next) => {
   try {
-    const task = tasks.find(t => t.id === req.taskId);
+    const task = await Task.findById(req.params.id);
 
     if (!task) {
       return res.status(404).json({
         success: false,
-        error: `Task with ID ${req.taskId} not found`
+        error: `Task with ID ${req.params.id} not found`
       });
     }
 
@@ -103,26 +98,17 @@ const getTaskById = (req, res, next) => {
   }
 };
 
-// 3. POST /tasks → createTask
-const createTask = (req, res, next) => {
+// 3. POST /tasks → Task.create()
+const createTask = async (req, res, next) => {
   try {
-    const { title, description } = req.body;
+    const { title, description, priority, completed } = req.body;
 
-    if (!title || typeof title !== 'string' || title.trim() === '') {
-      return res.status(400).json({
-        success: false,
-        error: 'Validation failed: Title is required and must be a non-empty string'
-      });
-    }
-
-    const newTask = {
-      id: nextId++,
-      title: title.trim(),
-      description: typeof description === 'string' ? description.trim() : '',
-      completed: false
-    };
-
-    tasks.push(newTask);
+    const newTask = await Task.create({
+      title,
+      description,
+      priority,
+      completed
+    });
 
     res.status(201).json({
       success: true,
@@ -134,67 +120,43 @@ const createTask = (req, res, next) => {
   }
 };
 
-// 4. PUT /tasks/:id → updateTask
-const updateTask = (req, res, next) => {
+// 4. PUT /tasks/:id → Task.findByIdAndUpdate()
+const updateTask = async (req, res, next) => {
   try {
-    const task = tasks.find(t => t.id === req.taskId);
+    const updatedTask = await Task.findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      { new: true, runValidators: true }
+    );
 
-    if (!task) {
+    if (!updatedTask) {
       return res.status(404).json({
         success: false,
-        error: `Task with ID ${req.taskId} not found`
+        error: `Task with ID ${req.params.id} not found`
       });
-    }
-
-    const { title, description, completed } = req.body;
-
-    if (title !== undefined) {
-      if (typeof title !== 'string' || title.trim() === '') {
-        return res.status(400).json({
-          success: false,
-          error: 'Validation failed: Title must be a non-empty string'
-        });
-      }
-      task.title = title.trim();
-    }
-
-    if (description !== undefined) {
-      task.description = typeof description === 'string' ? description.trim() : description;
-    }
-
-    if (completed !== undefined) {
-      if (typeof completed !== 'boolean') {
-        return res.status(400).json({
-          success: false,
-          error: 'Validation failed: Completed must be a boolean (true/false)'
-        });
-      }
-      task.completed = completed;
     }
 
     res.status(200).json({
       success: true,
       message: 'Task updated successfully',
-      data: task
+      data: updatedTask
     });
   } catch (error) {
     next(error);
   }
 };
 
-// 5. DELETE /tasks/:id → deleteTask
-const deleteTask = (req, res, next) => {
+// 5. DELETE /tasks/:id → Task.findByIdAndDelete()
+const deleteTask = async (req, res, next) => {
   try {
-    const taskIndex = tasks.findIndex(t => t.id === req.taskId);
+    const deletedTask = await Task.findByIdAndDelete(req.params.id);
 
-    if (taskIndex === -1) {
+    if (!deletedTask) {
       return res.status(404).json({
         success: false,
-        error: `Task with ID ${req.taskId} not found`
+        error: `Task with ID ${req.params.id} not found`
       });
     }
-
-    const deletedTask = tasks.splice(taskIndex, 1)[0];
 
     res.status(200).json({
       success: true,
@@ -212,12 +174,11 @@ const deleteTask = (req, res, next) => {
 const taskRouter = express.Router();
 
 taskRouter.get('/', getAllTasks);
-taskRouter.get('/:id', validateTaskId, getTaskById);
+taskRouter.get('/:id', validateObjectId, getTaskById);
 taskRouter.post('/', createTask);
-taskRouter.put('/:id', validateTaskId, updateTask);
-taskRouter.delete('/:id', validateTaskId, deleteTask);
+taskRouter.put('/:id', validateObjectId, updateTask);
+taskRouter.delete('/:id', validateObjectId, deleteTask);
 
-// Mount router on both '/tasks' (as in Practical 4 spec) and '/api/tasks'
 app.use('/tasks', taskRouter);
 app.use('/api/tasks', taskRouter);
 
@@ -225,18 +186,12 @@ app.use('/api/tasks', taskRouter);
 app.get('/health', (req, res) => {
   res.status(200).json({
     status: 'healthy',
+    database: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
     timestamp: new Date().toISOString()
   });
 });
 
-// Deliberate error demonstration route for faculty testing
-app.get('/error-test', (req, res, next) => {
-  const testError = new Error('Demonstration error caught by global error handler');
-  testError.status = 500;
-  next(testError);
-});
-
-// Supplementary Problem 3: Custom 404 handler for undefined routes
+// Custom 404 handler for undefined routes
 app.use((req, res) => {
   res.status(404).json({
     success: false,
@@ -244,9 +199,31 @@ app.use((req, res) => {
   });
 });
 
-// Step 5: Global Error Handling Middleware (must be the LAST middleware in the chain)
+// ==========================================
+// Global Error Handling Middleware (Step 5)
+// Returns structured JSON, NOT raw Mongoose error objects
+// ==========================================
 app.use((err, req, res, next) => {
-  console.error(err.stack);
+  console.error(err.stack || err.message);
+
+  // Mongoose Validation Error
+  if (err.name === 'ValidationError') {
+    const validationErrors = Object.values(err.errors).map(e => e.message);
+    return res.status(400).json({
+      success: false,
+      error: 'Validation failed',
+      details: validationErrors
+    });
+  }
+
+  // Mongoose CastError (invalid ObjectId format)
+  if (err.name === 'CastError') {
+    return res.status(400).json({
+      success: false,
+      error: `Invalid ID format: '${err.value}'`
+    });
+  }
+
   const statusCode = err.status || err.statusCode || 500;
   res.status(statusCode).json({
     success: false,

@@ -54,21 +54,19 @@ let inMemoryTasks = [
   }
 ];
 
-// Seed a default demo user in in-memory store for instant offline testing
-(async () => {
-  try {
-    const demoPasswordHash = await bcrypt.hash('password123', 10);
-    inMemoryUsers.push({
-      _id: '64c8f1a1b2c3d4e5f6a7b8u1',
-      email: 'demo@charusat.edu.in',
-      password: demoPasswordHash,
-      name: 'Demo Student',
-      createdAt: new Date('2026-10-31T08:00:00.000Z')
-    });
-  } catch (e) {
-    // Ignore seed error
-  }
-})();
+// Seed a default demo user in in-memory store synchronously for instant offline testing
+try {
+  const demoPasswordHash = bcrypt.hashSync('password123', 10);
+  inMemoryUsers.push({
+    _id: '64c8f1a1b2c3d4e5f6a7b8u1',
+    email: 'demo@charusat.edu.in',
+    password: demoPasswordHash,
+    name: 'Demo Student',
+    createdAt: new Date('2026-10-31T08:00:00.000Z')
+  });
+} catch (e) {
+  // Ignore seed error
+}
 
 // ==========================================
 // MongoDB Connection via Mongoose

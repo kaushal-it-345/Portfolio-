@@ -1,0 +1,136 @@
+### Practical 9: In-Memory Caching & Query Optimization (node-cache)
+### Course: Advanced Web Development Frameworks (ITUE301)
+### CHARUSAT - Faculty of Technology & Engineering
+### Compatible with VS Code REST Client / Thunder Client / Postman
+
+@baseUrl = http://localhost:5000
+
+### =========================================================================
+### 1. Health Check
+### =========================================================================
+GET {{baseUrl}}/health
+Accept: application/json
+
+### =========================================================================
+### 2. Login to Obtain Bearer Token
+### =========================================================================
+# @name login
+POST {{baseUrl}}/login
+Content-Type: application/json
+
+{
+  "email": "demo@charusat.edu.in",
+  "password": "password123"
+}
+
+### Store token from login response
+@authToken = {{login.response.body.token}}
+
+### =========================================================================
+### 3. Supplementary Problem 2: Check Initial Cache Stats
+### =========================================================================
+GET {{baseUrl}}/cache/stats
+Accept: application/json
+
+### =========================================================================
+### 4. Step 3: GET /tasks (First Request -> Cache MISS)
+### Notice response header: X-Cache: MISS
+### =========================================================================
+GET {{baseUrl}}/tasks
+Authorization: Bearer {{authToken}}
+Accept: application/json
+
+### =========================================================================
+### 5. Step 5: GET /tasks (Immediate Second Request -> Cache HIT)
+### Notice response header: X-Cache: HIT (Significantly faster response time)
+### =========================================================================
+GET {{baseUrl}}/tasks
+Authorization: Bearer {{authToken}}
+Accept: application/json
+
+### =========================================================================
+### 6. Step 5: GET /tasks (Third Request -> Cache HIT)
+### Record this in your lab journal response time table
+### =========================================================================
+GET {{baseUrl}}/tasks
+Authorization: Bearer {{authToken}}
+Accept: application/json
+
+### =========================================================================
+### 7. Supplementary Problem 1: Single-Task Caching (GET /tasks/:id)
+### First call -> Cache MISS
+### =========================================================================
+GET {{baseUrl}}/tasks/64c8f1a1b2c3d4e5f6a7b8c1
+Authorization: Bearer {{authToken}}
+Accept: application/json
+
+### =========================================================================
+### 8. Supplementary Problem 1: Single-Task Caching (GET /tasks/:id)
+### Second call -> Cache HIT
+### =========================================================================
+GET {{baseUrl}}/tasks/64c8f1a1b2c3d4e5f6a7b8c1
+Authorization: Bearer {{authToken}}
+Accept: application/json
+
+### =========================================================================
+### 9. Step 4: Write Operation - POST /tasks (Creates task & Invalidates Cache)
+### =========================================================================
+# @name createTask
+POST {{baseUrl}}/tasks
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "title": "Evaluate in-memory caching performance",
+  "description": "Demonstrate cache hit/miss ratio and response latency reduction with node-cache",
+  "priority": "high"
+}
+
+@createdTaskId = {{createTask.response.body.data._id}}
+
+### =========================================================================
+### 10. Verify Cache Invalidation after POST
+### This request MUST yield X-Cache: MISS (proves stale data is never served)
+### =========================================================================
+GET {{baseUrl}}/tasks
+Authorization: Bearer {{authToken}}
+Accept: application/json
+
+### =========================================================================
+### 11. Write Operation - PUT /tasks/:id (Updates task & Invalidates Cache)
+### =========================================================================
+PUT {{baseUrl}}/tasks/{{createdTaskId}}
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "title": "Evaluate in-memory caching performance (Completed)",
+  "completed": true
+}
+
+### =========================================================================
+### 12. Write Operation - DELETE /tasks/:id (Deletes task & Invalidates Cache)
+### =========================================================================
+DELETE {{baseUrl}}/tasks/{{createdTaskId}}
+Authorization: Bearer {{authToken}}
+Accept: application/json
+
+### =========================================================================
+### 13. Step 6: Temporarily Disable Caching (Compare Uncached Requests)
+### Using ?no_cache=true query parameter to measure uncached baseline
+### =========================================================================
+GET {{baseUrl}}/tasks?no_cache=true
+Authorization: Bearer {{authToken}}
+Accept: application/json
+
+### =========================================================================
+### 14. Supplementary Problem 2: Inspect Final Cache Metrics & Hit Ratio
+### =========================================================================
+GET {{baseUrl}}/cache/stats
+Accept: application/json
+
+### =========================================================================
+### 15. Reset Cache & Metrics
+### =========================================================================
+POST {{baseUrl}}/cache/clear
+Accept: application/json

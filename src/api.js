@@ -217,3 +217,34 @@ export const deleteTask = async (id) => {
   }
   return data;
 };
+
+// ==========================================
+// Practical 9: In-Memory Caching APIs (node-cache)
+// ==========================================
+
+/**
+ * Fetch cache hit/miss statistics and memory keys
+ */
+export const getCacheStats = async () => {
+  const res = await fetch(`${BASE_URL}/cache/stats`);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(data.error || 'Failed to fetch cache stats');
+  }
+  return data;
+};
+
+/**
+ * Flush cache entries and reset hit/miss counters
+ */
+export const clearServerCache = async () => {
+  const res = await fetch(`${BASE_URL}/cache/clear`, {
+    method: 'POST'
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(data.error || 'Failed to clear server cache');
+  }
+  return data;
+};
+

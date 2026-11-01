@@ -200,5 +200,31 @@ npm run dev
 ### Automated Verification
 ```bash
 cd backend
+# Verify full CRUD & API:
 node verify-api.js
+
+# Verify Practical 7 JWT authentication pipeline:
+npm run test:auth
+
+# Verify Practical 9 In-Memory Caching & Benchmark:
+npm run test:cache
 ```
+
+---
+
+## ⚡ Practical 9: In-Memory Caching & Query Optimization (`node-cache`)
+
+Full documentation and viva answers available in [docs/practical-9.md](file:///e:/SEM-5/AWDF/Portfolio-/docs/practical-9.md).
+
+- **In-Memory Caching:** Implemented server-side caching using `node-cache` (60s TTL) for `GET /tasks` and single-task `GET /tasks/:id`.
+- **Cache Invalidation:** Automated invalidation on write operations (`POST`, `PUT`, `DELETE`) preventing stale reads.
+- **Cache Hit/Miss Metrics:** Exposed via `GET /cache/stats` and live In-Memory Cache Monitor in the React UI (`src/components/Projects.jsx`).
+- **Empirical Benchmark:**
+
+| Metric | Uncached (`X-Cache: MISS`) | Cached (`X-Cache: HIT`) | Performance Improvement |
+| :--- | :--- | :--- | :--- |
+| **Sample #1** | 43.51 ms | 6.36 ms | -37.15 ms |
+| **Sample #2** | 32.08 ms | 6.82 ms | -25.26 ms |
+| **Sample #3** | 45.72 ms | 5.33 ms | -40.39 ms |
+| **Average Latency** | **40.44 ms** | **6.17 ms** | **⚡ 84.7% faster response** |
+

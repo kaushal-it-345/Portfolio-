@@ -15,6 +15,7 @@ const {
   validateTaskUpdateInput,
   validateObjectId
 } = require('./middleware/validationMiddleware');
+const cache = require('./cache');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -96,9 +97,9 @@ app.use((req, res, next) => {
   next();
 });
 
-// Enforce Content-Type: application/json on POST/PUT requests
+// Enforce Content-Type: application/json on POST/PUT requests (exempting cache clear endpoints)
 const requireJsonContentType = (req, res, next) => {
-  if (req.method === 'POST' || req.method === 'PUT') {
+  if ((req.method === 'POST' || req.method === 'PUT') && !req.path.includes('/cache/clear')) {
     const contentType = req.headers['content-type'];
     if (!contentType || !contentType.toLowerCase().includes('application/json')) {
       return res.status(415).json({
@@ -301,33 +302,74 @@ const getCurrentUser = async (req, res, next) => {
 // Task CRUD Controllers (Protected by Auth Middleware)
 // ==========================================
 
-// 1. GET /tasks → getAllTasks
+// 1. GET /tasks → getAllTasks (Practical 9: In-Memory Caching via node-cache)
 const getAllTasks = async (req, res, next) => {
   try {
+    const bypassCache = req.query.no_cache === 'true' || req.headers['x-bypass-cache'] === 'true';
+
+    // Step 3: Check cache first unless explicitly bypassed
+    if (!bypassCache) {
+      const cached = cache.get('all_tasks');
+      if (cached) {
+        cache.trackHit();
+        res.setHeader('X-Cache', 'HIT');
+        return res.status(200).json(cached);
+      }
+    }
+
+    cache.trackMiss();
+
     if (mongoose.connection.readyState === 1) {
       const tasks = await Task.find().sort({ createdAt: -1 });
-      return res.status(200).json({
+      const responsePayload = {
         success: true,
         count: tasks.length,
         data: tasks
-      });
+      };
+
+      if (!bypassCache) {
+        cache.set('all_tasks', responsePayload);
+      }
+      res.setHeader('X-Cache', bypassCache ? 'BYPASS' : 'MISS');
+      return res.status(200).json(responsePayload);
     }
 
-    // In-memory fallback
+    // In-memory fallback (simulates realistic database query latency as noted in lab manual)
+    await new Promise(resolve => setTimeout(resolve, 25));
     const sorted = [...inMemoryTasks].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-    res.status(200).json({
+    const responsePayload = {
       success: true,
       count: sorted.length,
       data: sorted
-    });
+    };
+
+    if (!bypassCache) {
+      cache.set('all_tasks', responsePayload);
+    }
+    res.setHeader('X-Cache', bypassCache ? 'BYPASS' : 'MISS');
+    return res.status(200).json(responsePayload);
   } catch (error) {
     next(error);
   }
 };
 
-// 2. GET /tasks/:id → getTaskById
+// 2. GET /tasks/:id → getTaskById (Practical 9 - Supplementary Problem 1: Single-Task Caching)
 const getTaskById = async (req, res, next) => {
   try {
+    const cacheKey = `task_${req.params.id}`;
+    const bypassCache = req.query.no_cache === 'true' || req.headers['x-bypass-cache'] === 'true';
+
+    if (!bypassCache) {
+      const cached = cache.get(cacheKey);
+      if (cached) {
+        cache.trackHit();
+        res.setHeader('X-Cache', 'HIT');
+        return res.status(200).json(cached);
+      }
+    }
+
+    cache.trackMiss();
+
     if (mongoose.connection.readyState === 1) {
       const task = await Task.findById(req.params.id);
       if (!task) {
@@ -336,9 +378,16 @@ const getTaskById = async (req, res, next) => {
           error: `Task with ID ${req.params.id} not found`
         });
       }
-      return res.status(200).json({ success: true, data: task });
+      const responsePayload = { success: true, data: task };
+      if (!bypassCache) {
+        cache.set(cacheKey, responsePayload);
+      }
+      res.setHeader('X-Cache', bypassCache ? 'BYPASS' : 'MISS');
+      return res.status(200).json(responsePayload);
     }
 
+    // In-memory fallback (simulates realistic database query latency)
+    await new Promise(resolve => setTimeout(resolve, 15));
     const task = inMemoryTasks.find(t => String(t._id) === String(req.params.id));
     if (!task) {
       return res.status(404).json({
@@ -346,44 +395,48 @@ const getTaskById = async (req, res, next) => {
         error: `Task with ID ${req.params.id} not found`
       });
     }
-    res.status(200).json({ success: true, data: task });
+    const responsePayload = { success: true, data: task };
+    if (!bypassCache) {
+      cache.set(cacheKey, responsePayload);
+    }
+    res.setHeader('X-Cache', bypassCache ? 'BYPASS' : 'MISS');
+    return res.status(200).json(responsePayload);
   } catch (error) {
     next(error);
   }
 };
 
-// 3. POST /tasks → createTask (Protected + Validated)
+// 3. POST /tasks → createTask (Protected + Validated + Cache Invalidation)
 const createTask = async (req, res, next) => {
   try {
     const { title, description, priority, completed } = req.body;
 
+    let newTask;
     if (mongoose.connection.readyState === 1) {
-      const newTask = await Task.create({
+      newTask = await Task.create({
         title: title.trim(),
         description: description ? description.trim() : '',
         priority: priority || 'medium',
         completed: completed || false,
         userId: req.user?.id
       });
-      return res.status(201).json({
-        success: true,
-        message: 'Task created successfully',
-        data: newTask
-      });
+    } else {
+      newTask = {
+        _id: new mongoose.Types.ObjectId().toString(),
+        title: title.trim(),
+        description: description ? description.trim() : '',
+        priority: priority || 'medium',
+        completed: completed || false,
+        userId: req.user?.id,
+        createdAt: new Date()
+      };
+      inMemoryTasks.push(newTask);
     }
 
-    const newTask = {
-      _id: new mongoose.Types.ObjectId().toString(),
-      title: title.trim(),
-      description: description ? description.trim() : '',
-      priority: priority || 'medium',
-      completed: completed || false,
-      userId: req.user?.id,
-      createdAt: new Date()
-    };
-    inMemoryTasks.push(newTask);
+    // Step 4: Invalidate cache after successful write
+    cache.del('all_tasks');
 
-    res.status(201).json({
+    return res.status(201).json({
       success: true,
       message: 'Task created successfully',
       data: newTask
@@ -393,11 +446,13 @@ const createTask = async (req, res, next) => {
   }
 };
 
-// 4. PUT /tasks/:id → updateTask (Protected + Validated)
+// 4. PUT /tasks/:id → updateTask (Protected + Validated + Cache Invalidation)
 const updateTask = async (req, res, next) => {
   try {
     const { title, description, priority, completed } = req.body;
+    const taskId = req.params.id;
 
+    let updatedTask;
     if (mongoose.connection.readyState === 1) {
       const updateData = {};
       if (title !== undefined) updateData.title = title.trim();
@@ -405,8 +460,8 @@ const updateTask = async (req, res, next) => {
       if (priority !== undefined) updateData.priority = priority;
       if (completed !== undefined) updateData.completed = Boolean(completed);
 
-      const updatedTask = await Task.findByIdAndUpdate(
-        req.params.id,
+      updatedTask = await Task.findByIdAndUpdate(
+        taskId,
         updateData,
         { new: true, runValidators: true }
       );
@@ -414,77 +469,97 @@ const updateTask = async (req, res, next) => {
       if (!updatedTask) {
         return res.status(404).json({
           success: false,
-          error: `Task with ID ${req.params.id} not found`
+          error: `Task with ID ${taskId} not found`
+        });
+      }
+    } else {
+      const taskIndex = inMemoryTasks.findIndex(t => String(t._id) === String(taskId));
+      if (taskIndex === -1) {
+        return res.status(404).json({
+          success: false,
+          error: `Task with ID ${taskId} not found`
         });
       }
 
-      return res.status(200).json({
-        success: true,
-        message: 'Task updated successfully',
-        data: updatedTask
-      });
+      if (title !== undefined) inMemoryTasks[taskIndex].title = title.trim();
+      if (description !== undefined) inMemoryTasks[taskIndex].description = description.trim();
+      if (priority !== undefined) inMemoryTasks[taskIndex].priority = priority;
+      if (completed !== undefined) inMemoryTasks[taskIndex].completed = Boolean(completed);
+
+      updatedTask = inMemoryTasks[taskIndex];
     }
 
-    const taskIndex = inMemoryTasks.findIndex(t => String(t._id) === String(req.params.id));
-    if (taskIndex === -1) {
-      return res.status(404).json({
-        success: false,
-        error: `Task with ID ${req.params.id} not found`
-      });
-    }
+    // Step 4 & Supplementary Problem 1: Invalidate collection and single-task caches
+    cache.del('all_tasks');
+    cache.del(`task_${taskId}`);
 
-    if (title !== undefined) inMemoryTasks[taskIndex].title = title.trim();
-    if (description !== undefined) inMemoryTasks[taskIndex].description = description.trim();
-    if (priority !== undefined) inMemoryTasks[taskIndex].priority = priority;
-    if (completed !== undefined) inMemoryTasks[taskIndex].completed = Boolean(completed);
-
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       message: 'Task updated successfully',
-      data: inMemoryTasks[taskIndex]
+      data: updatedTask
     });
   } catch (error) {
     next(error);
   }
 };
 
-// 5. DELETE /tasks/:id → deleteTask (Protected)
+// 5. DELETE /tasks/:id → deleteTask (Protected + Cache Invalidation)
 const deleteTask = async (req, res, next) => {
   try {
+    const taskId = req.params.id;
+    let deletedTask;
+
     if (mongoose.connection.readyState === 1) {
-      const deletedTask = await Task.findByIdAndDelete(req.params.id);
+      deletedTask = await Task.findByIdAndDelete(taskId);
 
       if (!deletedTask) {
         return res.status(404).json({
           success: false,
-          error: `Task with ID ${req.params.id} not found`
+          error: `Task with ID ${taskId} not found`
+        });
+      }
+    } else {
+      const taskIndex = inMemoryTasks.findIndex(t => String(t._id) === String(taskId));
+      if (taskIndex === -1) {
+        return res.status(404).json({
+          success: false,
+          error: `Task with ID ${taskId} not found`
         });
       }
 
-      return res.status(200).json({
-        success: true,
-        message: 'Task deleted successfully',
-        data: deletedTask
-      });
+      deletedTask = inMemoryTasks.splice(taskIndex, 1)[0];
     }
 
-    const taskIndex = inMemoryTasks.findIndex(t => String(t._id) === String(req.params.id));
-    if (taskIndex === -1) {
-      return res.status(404).json({
-        success: false,
-        error: `Task with ID ${req.params.id} not found`
-      });
-    }
+    // Step 4 & Supplementary Problem 1: Invalidate collection and single-task caches
+    cache.del('all_tasks');
+    cache.del(`task_${taskId}`);
 
-    const deleted = inMemoryTasks.splice(taskIndex, 1)[0];
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       message: 'Task deleted successfully',
-      data: deleted
+      data: deletedTask
     });
   } catch (error) {
     next(error);
   }
+};
+
+// Practical 9 - Supplementary Problem 2: Cache metrics & debug controllers
+const getCacheStats = (req, res) => {
+  res.status(200).json({
+    success: true,
+    message: 'In-memory cache metrics (node-cache)',
+    data: cache.getMetrics()
+  });
+};
+
+const clearCache = (req, res) => {
+  cache.resetMetrics();
+  res.status(200).json({
+    success: true,
+    message: 'Cache and metrics reset successfully',
+    data: cache.getMetrics()
+  });
 };
 
 // ==========================================
@@ -517,6 +592,10 @@ const taskRouter = express.Router();
 // Step 6: Apply auth middleware to all task routes
 taskRouter.use(authMiddleware);
 
+// Practical 9 - Supplementary Problem 2: Cache metrics & reset endpoints
+taskRouter.get('/cache/stats', getCacheStats);
+taskRouter.post('/cache/clear', clearCache);
+
 taskRouter.get('/', getAllTasks);
 taskRouter.get('/:id', validateObjectId, getTaskById);
 taskRouter.post('/', validateTaskInput, createTask);
@@ -526,6 +605,12 @@ taskRouter.delete('/:id', validateObjectId, deleteTask);
 // Mount task router on /tasks and /api/tasks
 app.use('/tasks', taskRouter);
 app.use('/api/tasks', taskRouter);
+
+// Public debug endpoints for Postman, Thunder Client, and lab verification
+app.get('/cache/stats', getCacheStats);
+app.get('/api/cache/stats', getCacheStats);
+app.post('/cache/clear', clearCache);
+app.post('/api/cache/clear', clearCache);
 
 // Health check endpoint (Public)
 app.get('/health', (req, res) => {

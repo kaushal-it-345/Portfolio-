@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useMemo, lazy, Suspense } from 'react';
-import { getTasks, createTask, updateTask, deleteTask, BASE_URL } from '../api';
+import { getTasks, createTask, updateTask, deleteTask, getCacheStats, clearServerCache, BASE_URL } from '../api';
 import LoadingSpinner from './LoadingSpinner';
 import ErrorMessage from './ErrorMessage';
 import Toast from './Toast';
@@ -41,8 +41,36 @@ function Projects() {
     // Practical 8 - Supplementary Problem 1: State for lazy-loaded Analytics Chart
     const [showAnalytics, setShowAnalytics] = useState(false);
 
+    // Practical 9 - In-Memory Caching (node-cache) metrics & debug state
+    const [cacheStats, setCacheStats] = useState(null);
+    const [isClearingCache, setIsClearingCache] = useState(false);
+
     const showToast = (message, type = 'success') => {
         setToast({ message, type });
+    };
+
+    const refreshCacheStats = useCallback(async () => {
+        try {
+            const res = await getCacheStats();
+            if (res && res.data) {
+                setCacheStats(res.data);
+            }
+        } catch {
+            // Silently ignore if backend offline
+        }
+    }, []);
+
+    const handleClearCache = async () => {
+        try {
+            setIsClearingCache(true);
+            await clearServerCache();
+            await refreshCacheStats();
+            showToast('Server cache purged! Next GET /tasks will be a cache MISS.', 'info');
+        } catch (err) {
+            showToast(err.message || 'Failed to clear cache', 'error');
+        } finally {
+            setIsClearingCache(false);
+        }
     };
 
     // Load tasks from backend on mount (Step 3)
@@ -52,12 +80,13 @@ function Projects() {
             setError(null);
             const res = await getTasks();
             setTasks(res.data || []);
+            refreshCacheStats();
         } catch (err) {
             setError(err.message || 'Unable to connect to Express/MongoDB backend at http://localhost:5000');
         } finally {
             setLoading(false);
         }
-    }, []);
+    }, [refreshCacheStats]);
 
     useEffect(() => {
         let isMounted = true;
@@ -68,6 +97,7 @@ function Projects() {
                 if (isMounted) {
                     setTasks(res.data || []);
                     setLoading(false);
+                    refreshCacheStats();
                 }
             } catch (err) {
                 if (isMounted) {
@@ -291,8 +321,91 @@ function Projects() {
                     </div>
                 </div>
 
+                {/* Practical 9: In-Memory Caching (node-cache) Live Monitor */}
+                <div style={{
+                    marginTop: '20px',
+                    padding: '12px 18px',
+                    background: 'var(--surface)',
+                    border: '1px solid var(--surface-border)',
+                    borderRadius: 'var(--radius-md)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    flexWrap: 'wrap',
+                    gap: '12px'
+                }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <span style={{ fontSize: '1.25rem' }}>⚡</span>
+                        <div>
+                            <div style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--on-bg)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <span>In-Memory Cache (node-cache)</span>
+                                <span style={{
+                                    fontSize: '0.72rem',
+                                    padding: '2px 8px',
+                                    borderRadius: '12px',
+                                    background: 'rgba(13, 148, 136, 0.12)',
+                                    color: 'var(--primary)',
+                                    fontWeight: 600
+                                }}>
+                                    TTL: 60s
+                                </span>
+                            </div>
+                            <div style={{ fontSize: '0.78rem', color: 'var(--on-bg-muted, #64748b)', marginTop: '2px' }}>
+                                {cacheStats ? (
+                                    <span>
+                                        Hits: <strong style={{ color: 'var(--success, #16a34a)' }}>{cacheStats.hits}</strong> |&nbsp;
+                                        Misses: <strong style={{ color: 'var(--warning, #eab308)' }}>{cacheStats.misses}</strong> |&nbsp;
+                                        Hit Ratio: <strong>{cacheStats.hitRatio}</strong> |&nbsp;
+                                        Keys: <strong>{cacheStats.keyCount || cacheStats.keys?.length || 0}</strong>
+                                    </span>
+                                ) : (
+                                    <span>Server-side caching active on GET /tasks and GET /tasks/:id</span>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <button
+                            type="button"
+                            onClick={refreshCacheStats}
+                            style={{
+                                padding: '6px 12px',
+                                fontSize: '0.8rem',
+                                fontWeight: 500,
+                                borderRadius: 'var(--radius-sm)',
+                                border: '1px solid var(--surface-border)',
+                                background: 'transparent',
+                                color: 'var(--on-bg)',
+                                cursor: 'pointer'
+                            }}
+                            title="Refresh cache statistics"
+                        >
+                            🔄 Refresh
+                        </button>
+                        <button
+                            type="button"
+                            onClick={handleClearCache}
+                            disabled={isClearingCache}
+                            style={{
+                                padding: '6px 14px',
+                                fontSize: '0.8rem',
+                                fontWeight: 600,
+                                borderRadius: 'var(--radius-sm)',
+                                border: 'none',
+                                background: 'var(--primary)',
+                                color: '#ffffff',
+                                cursor: isClearingCache ? 'not-allowed' : 'pointer',
+                                opacity: isClearingCache ? 0.7 : 1
+                            }}
+                            title="Purge cache storage to force a cache MISS"
+                        >
+                            {isClearingCache ? 'Purging...' : '🧹 Purge Cache'}
+                        </button>
+                    </div>
+                </div>
+
                 {/* Practical 8 - Supplementary Problem 1: Button to trigger lazy chunk loading */}
-                <div style={{ display: 'flex', justifyContent: 'center', marginTop: '20px' }}>
+                <div style={{ display: 'flex', justifyContent: 'center', marginTop: '16px' }}>
                     <button
                         type="button"
                         onClick={() => setShowAnalytics(prev => !prev)}

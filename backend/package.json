@@ -11,7 +11,9 @@
     "level3": "node server-level3.js",
     "level3:dev": "nodemon server-level3.js",
     "test": "node verify-auth-pipeline.js",
-    "verify:auth": "node verify-auth-pipeline.js"
+    "test:cache": "node verify-caching.js",
+    "verify:auth": "node verify-auth-pipeline.js",
+    "verify:cache": "node verify-caching.js"
   },
   "keywords": [
     "task",
@@ -27,7 +29,8 @@
     "dotenv": "^18.0.9",
     "express": "^4.18.2",
     "jsonwebtoken": "^9.0.3",
-    "mongoose": "^9.11.4"
+    "mongoose": "^9.11.4",
+    "node-cache": "^5.1.2"
   },
   "devDependencies": {
     "nodemon": "^3.0.1"

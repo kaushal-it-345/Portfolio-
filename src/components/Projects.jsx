@@ -1,8 +1,12 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo, lazy, Suspense } from 'react';
 import { getTasks, createTask, updateTask, deleteTask, BASE_URL } from '../api';
 import LoadingSpinner from './LoadingSpinner';
 import ErrorMessage from './ErrorMessage';
 import Toast from './Toast';
+
+// Practical 8 - Supplementary Problem 1: Heavy third-party/visualization component lazy loading
+const TaskAnalyticsChart = lazy(() => import('./TaskAnalyticsChart'));
+
 
 function Projects() {
     // Core state (Step 3 & 4)
@@ -34,6 +38,9 @@ function Projects() {
     // Supplementary Problem 3: Toast notification state
     const [toast, setToast] = useState({ message: '', type: 'success' });
 
+    // Practical 8 - Supplementary Problem 1: State for lazy-loaded Analytics Chart
+    const [showAnalytics, setShowAnalytics] = useState(false);
+
     const showToast = (message, type = 'success') => {
         setToast({ message, type });
     };
@@ -53,14 +60,34 @@ function Projects() {
     }, []);
 
     useEffect(() => {
-        loadTasks();
+        let isMounted = true;
+
+        const fetchInitialTasks = async () => {
+            try {
+                const res = await getTasks();
+                if (isMounted) {
+                    setTasks(res.data || []);
+                    setLoading(false);
+                }
+            } catch (err) {
+                if (isMounted) {
+                    setError(err.message || 'Unable to connect to Express/MongoDB backend at http://localhost:5000');
+                    setLoading(false);
+                }
+            }
+        };
+
+        fetchInitialTasks();
 
         const handleAuthChange = () => {
             loadTasks();
         };
 
         window.addEventListener('auth:change', handleAuthChange);
-        return () => window.removeEventListener('auth:change', handleAuthChange);
+        return () => {
+            isMounted = false;
+            window.removeEventListener('auth:change', handleAuthChange);
+        };
     }, [loadTasks]);
 
     // Supplementary Problem 1: Optimistic UI update for task creation
@@ -174,21 +201,27 @@ function Projects() {
         }
     };
 
-    // Filter logic
-    const filteredTasks = tasks.filter(task => {
-        const matchesSearch = task.title.toLowerCase().includes(searchTerm.toLowerCase().trim()) ||
-            (task.description && task.description.toLowerCase().includes(searchTerm.toLowerCase().trim()));
+    // Practical 8 - Supplementary Problem 3: Memoize computed filter to eliminate redundant recalculations
+    const filteredTasks = useMemo(() => {
+        return tasks.filter(task => {
+            const matchesSearch = task.title.toLowerCase().includes(searchTerm.toLowerCase().trim()) ||
+                (task.description && task.description.toLowerCase().includes(searchTerm.toLowerCase().trim()));
 
-        const matchesStatus =
-            statusFilter === 'all' ? true :
-            statusFilter === 'completed' ? task.completed :
-            !task.completed;
+            const matchesStatus =
+                statusFilter === 'all' ? true :
+                statusFilter === 'completed' ? task.completed :
+                !task.completed;
 
-        const matchesPriority =
-            priorityFilter === 'all' ? true : task.priority === priorityFilter;
+            const matchesPriority =
+                priorityFilter === 'all' ? true : task.priority === priorityFilter;
 
-        return matchesSearch && matchesStatus && matchesPriority;
-    });
+            return matchesSearch && matchesStatus && matchesPriority;
+        });
+    }, [tasks, searchTerm, statusFilter, priorityFilter]);
+
+    // Practical 8: Memoize stats calculations
+    const completedCount = useMemo(() => tasks.filter(t => t.completed).length, [tasks]);
+    const pendingCount = useMemo(() => tasks.filter(t => !t.completed).length, [tasks]);
 
     return (
         <section className="projects-page">
@@ -249,18 +282,51 @@ function Projects() {
                         <span className="projects-stat-label">Total Tasks</span>
                     </div>
                     <div className="projects-stat">
-                        <span className="projects-stat-value">
-                            {tasks.filter(t => t.completed).length}
-                        </span>
+                        <span className="projects-stat-value">{completedCount}</span>
                         <span className="projects-stat-label">Completed</span>
                     </div>
                     <div className="projects-stat">
-                        <span className="projects-stat-value">
-                            {tasks.filter(t => !t.completed).length}
-                        </span>
+                        <span className="projects-stat-value">{pendingCount}</span>
                         <span className="projects-stat-label">Pending</span>
                     </div>
                 </div>
+
+                {/* Practical 8 - Supplementary Problem 1: Button to trigger lazy chunk loading */}
+                <div style={{ display: 'flex', justifyContent: 'center', marginTop: '20px' }}>
+                    <button
+                        type="button"
+                        onClick={() => setShowAnalytics(prev => !prev)}
+                        style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                            padding: '9px 20px',
+                            borderRadius: 'var(--radius-xl)',
+                            border: '1.5px solid var(--primary)',
+                            background: showAnalytics ? 'var(--primary)' : 'var(--accent-light)',
+                            color: showAnalytics ? '#ffffff' : 'var(--primary)',
+                            fontSize: '0.88rem',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            transition: 'all 0.25s ease',
+                            boxShadow: '0 4px 12px rgba(13, 148, 136, 0.15)'
+                        }}
+                    >
+                        <span>{showAnalytics ? '▲' : '📊'}</span>
+                        <span>{showAnalytics ? 'Hide Analytics Dashboard' : 'View Task Analytics (Lazy Chunk)'}</span>
+                    </button>
+                </div>
+
+                {/* Supplementary Problem 1: Suspense-wrapped lazy loaded heavy component */}
+                {showAnalytics && (
+                    <Suspense fallback={
+                        <div style={{ marginTop: '20px' }}>
+                            <LoadingSpinner message="Fetching heavy Task Analytics chunk on-demand..." />
+                        </div>
+                    }>
+                        <TaskAnalyticsChart tasks={tasks} />
+                    </Suspense>
+                )}
             </div>
 
             {/* Task Creation Form (Step 4) */}

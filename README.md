@@ -13,9 +13,11 @@
 4. [Practical 4: Building a RESTful API with Node.js and Express](#-practical-4-building-a-restful-api-with-nodejs-and-express)
 5. [Practical 5: MongoDB Integration and Schema Design with Mongoose](#-practical-5-mongodb-integration-and-schema-design-with-mongoose)
 6. [Practical 6: Full Stack Integration React + Node + MongoDB](#-practical-6-full-stack-integration-react--node--mongodb)
-7. [Richardson Maturity Model Evaluation (RMM Levels 0–3)](#-richardson-maturity-model-evaluation-rmm-levels-03)
-8. [Conceptual Analysis & Viva Questions](#-conceptual-analysis--viva-questions)
-9. [Setup & Running Locally](#-setup--running-locally)
+7. [Practical 7: User Authentication & Role-Based Access Control](#-practical-7-user-authentication--role-based-access-control)
+8. [Practical 8: Performance Optimization and Lazy Loading in React](#-practical-8-performance-optimization-and-lazy-loading-in-react)
+9. [Richardson Maturity Model Evaluation (RMM Levels 0–3)](#-richardson-maturity-model-evaluation-rmm-levels-03)
+10. [Conceptual Analysis & Viva Questions](#-conceptual-analysis--viva-questions)
+11. [Setup & Running Locally](#-setup--running-locally)
 
 ---
 
@@ -99,6 +101,51 @@ JSON Response → React UI updates state & renders Toast notification
    - On confirmation, permanently removes document from MongoDB and updates UI state.
 5. **Toast Notifications:**
    - Floating `<Toast />` component provides immediate visual feedback (success/error) after each operation.
+
+---
+
+## 🔐 Practical 7: User Authentication & Role-Based Access Control
+- **JWT Architecture:** Stateless tokens with verification pipeline (`authMiddleware.js`), bcrypt password hashing, and user role claims (`admin` vs `user`).
+- **REST Endpoints:** `POST /api/auth/register`, `POST /api/auth/login`, and protected route guards.
+- **Frontend Integration:** Full modal (`AuthModal.jsx`) supporting Login/Register with live token storage, session header attachments, and role-aware UI affordances.
+
+---
+
+## ⚡ Practical 8: Performance Optimization and Lazy Loading in React
+
+### Objective
+To optimize React frontend bundle delivery using route-level and component-level code splitting (`React.lazy()`), `<Suspense>` boundary fallbacks, and build-time profiling. Complete documentation available in [docs/practical-8.md](file:///e:/SEM-5/AWDF/Portfolio-/docs/practical-8.md).
+
+### Code Splitting Architecture
+```
+main.bundle.js (Before: 287.85 kB monolithic upfront)
+    │
+    ▼ (Optimized via React.lazy & Suspense)
+    ├── index-[hash].js (250.99 kB) ────────► Core shell & vendor
+    ├── Home-[hash].js (3.80 kB) ───────────► Loaded on "/"
+    ├── Projects-[hash].js (22.18 kB) ──────► Loaded on "/projects" or "/tasks"
+    ├── Contact-[hash].js (12.86 kB) ───────► Loaded on "/contact"
+    ├── TaskAnalyticsChart-[hash].js (9.9 kB) ► Supplementary heavy chart chunk
+    └── NotFound-[hash].js (1.45 kB) ───────► Loaded on 404
+```
+
+### Bundle Size & Performance Comparison
+
+| Asset Chunk | Before Optimization | After Optimization | Performance Gain |
+| :--- | :--- | :--- | :--- |
+| **Initial JS (`index.js`)** | **287.85 kB** (87.68 kB gzip) | **250.99 kB** (79.86 kB gzip) | **-36.86 kB (-12.8%)** *(Initial critical path)* |
+| **`Projects.js`** | Bundled in main | **22.18 kB** (5.85 kB gzip) | Loaded on demand |
+| **`Contact.js`** | Bundled in main | **12.86 kB** (4.09 kB gzip) | Loaded on demand |
+| **`TaskAnalyticsChart.js`**| Bundled in main | **9.90 kB** (3.26 kB gzip) | Loaded on toggle (Supplementary 1) |
+| **`Home.js`** | Bundled in main | **3.80 kB** (1.46 kB gzip) | Loaded on demand |
+| **`NotFound.js`** | Bundled in main | **1.45 kB** (0.80 kB gzip) | Loaded on demand |
+
+### Key Features Implemented
+1. **Route-Based Lazy Loading:** Route components (`Home`, `Projects`, `Contact`, `NotFound`) imported dynamically via `React.lazy()`.
+2. **Accessible Suspense Fallback UI:** `<RouteFallback />` renders animated skeleton shimmer and dual-ring spinner with ARIA live attributes.
+3. **Supplementary 1 (Heavy Component Splitting):** `TaskAnalyticsChart.jsx` visualizes task performance and is dynamically loaded on demand.
+4. **Supplementary 2 (Flicker Prevention):** `lazyWithDelay(importFunc, 300)` guarantees smooth transitions and avoids flashing on fast networks.
+5. **Supplementary 3 (Re-render Optimization):** Eliminated redundant filtering computations using `useMemo` and memoized stats.
 
 ---
 

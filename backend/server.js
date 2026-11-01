@@ -1,15 +1,31 @@
 const express = require('express');
 const cors = require('cors');
 const mongoose = require('mongoose');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 require('dotenv').config();
 
 const Task = require('./models/Task');
+const User = require('./models/User');
+const authMiddleware = require('./middleware/authMiddleware');
+const {
+  validateRegisterInput,
+  validateLoginInput,
+  validateTaskInput,
+  validateTaskUpdateInput,
+  validateObjectId
+} = require('./middleware/validationMiddleware');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 const MONGO_URI = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/task-manager';
+const JWT_SECRET = process.env.JWT_SECRET || 'charusat_practical_7_jwt_secret_key_2026_itue301';
+const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '1h';
 
-// Fallback in-memory data store when MongoDB is offline
+// ==========================================
+// In-Memory Fallback Data Store (when MongoDB is offline)
+// ==========================================
+let inMemoryUsers = [];
 let inMemoryTasks = [
   {
     _id: '64c8f1a1b2c3d4e5f6a7b8c1',
@@ -29,13 +45,29 @@ let inMemoryTasks = [
   },
   {
     _id: '64c8f1a1b2c3d4e5f6a7b8c3',
-    title: 'Full Stack Integration',
-    description: 'Wire React frontend to Express & MongoDB backend with optimistic updates and Toast UI',
+    title: 'Full Stack Authentication Pipeline',
+    description: 'Wire React frontend to Express JWT authentication with bcrypt password hashing',
     completed: false,
     priority: 'high',
     createdAt: new Date()
   }
 ];
+
+// Seed a default demo user in in-memory store for instant offline testing
+(async () => {
+  try {
+    const demoPasswordHash = await bcrypt.hash('password123', 10);
+    inMemoryUsers.push({
+      _id: '64c8f1a1b2c3d4e5f6a7b8u1',
+      email: 'demo@charusat.edu.in',
+      password: demoPasswordHash,
+      name: 'Demo Student',
+      createdAt: new Date('2026-10-31T08:00:00.000Z')
+    });
+  } catch (e) {
+    // Ignore seed error
+  }
+})();
 
 // ==========================================
 // MongoDB Connection via Mongoose
@@ -49,11 +81,11 @@ mongoose.connect(MONGO_URI)
   })
   .catch((err) => {
     isDbConnected = false;
-    console.warn(`MongoDB not accessible: ${err.message}. Seamlessly using verified in-memory fallback.`);
+    console.warn(`MongoDB not accessible (${err.message}). Seamlessly using verified in-memory fallback.`);
   });
 
 // ==========================================
-// Middleware Pipeline
+// Core Middleware Pipeline
 // ==========================================
 app.use(cors());
 app.use(express.json());
@@ -64,7 +96,7 @@ app.use((req, res, next) => {
   next();
 });
 
-// Enforce Content-Type: application/json on POST/PUT
+// Enforce Content-Type: application/json on POST/PUT requests
 const requireJsonContentType = (req, res, next) => {
   if (req.method === 'POST' || req.method === 'PUT') {
     const contentType = req.headers['content-type'];
@@ -79,20 +111,194 @@ const requireJsonContentType = (req, res, next) => {
 };
 app.use(requireJsonContentType);
 
-// Route-Specific Middleware: Validate MongoDB ObjectId format
-const validateObjectId = (req, res, next) => {
-  const { id } = req.params;
-  if (!mongoose.Types.ObjectId.isValid(id)) {
-    return res.status(400).json({
-      success: false,
-      error: `Invalid task ID format: '${id}'. Must be a valid 24-character hexadecimal ObjectId.`
+// ==========================================
+// Practical 7: Authentication Controllers
+// ==========================================
+
+/**
+ * POST /register (or /api/auth/register)
+ * - Hashes password using bcrypt (salt rounds = 10)
+ * - Saves User document to MongoDB (or in-memory store)
+ * - Returns 201 Created on success
+ */
+const registerUser = async (req, res, next) => {
+  try {
+    const { email, password, name } = req.body;
+    const normalizedEmail = email.trim().toLowerCase();
+
+    // 1. Check if user already exists
+    if (mongoose.connection.readyState === 1) {
+      const existingUser = await User.findOne({ email: normalizedEmail });
+      if (existingUser) {
+        return res.status(400).json({
+          success: false,
+          error: 'A user with this email already exists'
+        });
+      }
+
+      // 2. Hash password with bcrypt before saving to MongoDB
+      const hashedPassword = await bcrypt.hash(password, 10);
+
+      // 3. Create user document
+      const user = await User.create({
+        email: normalizedEmail,
+        password: hashedPassword,
+        name: name ? name.trim() : ''
+      });
+
+      return res.status(201).json({
+        success: true,
+        message: 'User registered successfully',
+        data: {
+          id: user._id,
+          email: user.email,
+          name: user.name,
+          createdAt: user.createdAt
+        }
+      });
+    }
+
+    // In-memory fallback
+    const existing = inMemoryUsers.find(u => u.email === normalizedEmail);
+    if (existing) {
+      return res.status(400).json({
+        success: false,
+        error: 'A user with this email already exists'
+      });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const newUser = {
+      _id: new mongoose.Types.ObjectId().toString(),
+      email: normalizedEmail,
+      password: hashedPassword,
+      name: name ? name.trim() : '',
+      createdAt: new Date()
+    };
+    inMemoryUsers.push(newUser);
+
+    return res.status(201).json({
+      success: true,
+      message: 'User registered successfully',
+      data: {
+        id: newUser._id,
+        email: newUser.email,
+        name: newUser.name,
+        createdAt: newUser.createdAt
+      }
     });
+  } catch (error) {
+    next(error);
   }
-  next();
+};
+
+/**
+ * POST /login (or /api/auth/login)
+ * - Verifies user existence & compares password using bcrypt.compare
+ * - Signs JWT token with 1h expiry
+ * - Returns token and user profile
+ */
+const loginUser = async (req, res, next) => {
+  try {
+    const { email, password } = req.body;
+    const normalizedEmail = email.trim().toLowerCase();
+
+    let user = null;
+
+    if (mongoose.connection.readyState === 1) {
+      user = await User.findOne({ email: normalizedEmail });
+    } else {
+      user = inMemoryUsers.find(u => u.email === normalizedEmail);
+    }
+
+    if (!user) {
+      return res.status(401).json({
+        success: false,
+        error: 'Invalid email or password'
+      });
+    }
+
+    // Compare password using bcrypt.compare
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+      return res.status(401).json({
+        success: false,
+        error: 'Invalid email or password'
+      });
+    }
+
+    // Generate JWT token with reasonable expiry (1 hour)
+    const token = jwt.sign(
+      {
+        id: user._id,
+        email: user.email
+      },
+      JWT_SECRET,
+      { expiresIn: JWT_EXPIRES_IN }
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: 'Login successful',
+      token,
+      user: {
+        id: user._id,
+        email: user.email,
+        name: user.name || ''
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * GET /me (or /api/auth/me) [Supplementary Problem 1]
+ * Returns currently logged-in user's details using the decoded JWT
+ */
+const getCurrentUser = async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+
+    if (mongoose.connection.readyState === 1) {
+      const user = await User.findById(userId).select('-password');
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          error: 'User not found'
+        });
+      }
+      return res.status(200).json({
+        success: true,
+        data: user
+      });
+    }
+
+    // In-memory fallback
+    const user = inMemoryUsers.find(u => String(u._id) === String(userId));
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        error: 'User not found'
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        _id: user._id,
+        email: user.email,
+        name: user.name || '',
+        createdAt: user.createdAt
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
 };
 
 // ==========================================
-// Task CRUD Controllers (Practical 6: React Integration)
+// Task CRUD Controllers (Protected by Auth Middleware)
 // ==========================================
 
 // 1. GET /tasks → getAllTasks
@@ -146,21 +352,18 @@ const getTaskById = async (req, res, next) => {
   }
 };
 
-// 3. POST /tasks → createTask
+// 3. POST /tasks → createTask (Protected + Validated)
 const createTask = async (req, res, next) => {
   try {
     const { title, description, priority, completed } = req.body;
 
-    // Run Mongoose schema validation
-    const tempDoc = new Task({ title, description, priority, completed });
-    await tempDoc.validate();
-
     if (mongoose.connection.readyState === 1) {
       const newTask = await Task.create({
-        title: tempDoc.title,
-        description: tempDoc.description,
-        priority: tempDoc.priority,
-        completed: tempDoc.completed
+        title: title.trim(),
+        description: description ? description.trim() : '',
+        priority: priority || 'medium',
+        completed: completed || false,
+        userId: req.user?.id
       });
       return res.status(201).json({
         success: true,
@@ -171,10 +374,11 @@ const createTask = async (req, res, next) => {
 
     const newTask = {
       _id: new mongoose.Types.ObjectId().toString(),
-      title: tempDoc.title.trim(),
-      description: tempDoc.description || '',
-      priority: tempDoc.priority || 'medium',
-      completed: tempDoc.completed || false,
+      title: title.trim(),
+      description: description ? description.trim() : '',
+      priority: priority || 'medium',
+      completed: completed || false,
+      userId: req.user?.id,
       createdAt: new Date()
     };
     inMemoryTasks.push(newTask);
@@ -189,15 +393,21 @@ const createTask = async (req, res, next) => {
   }
 };
 
-// 4. PUT /tasks/:id → updateTask
+// 4. PUT /tasks/:id → updateTask (Protected + Validated)
 const updateTask = async (req, res, next) => {
   try {
     const { title, description, priority, completed } = req.body;
 
     if (mongoose.connection.readyState === 1) {
+      const updateData = {};
+      if (title !== undefined) updateData.title = title.trim();
+      if (description !== undefined) updateData.description = description.trim();
+      if (priority !== undefined) updateData.priority = priority;
+      if (completed !== undefined) updateData.completed = Boolean(completed);
+
       const updatedTask = await Task.findByIdAndUpdate(
         req.params.id,
-        req.body,
+        updateData,
         { new: true, runValidators: true }
       );
 
@@ -223,25 +433,8 @@ const updateTask = async (req, res, next) => {
       });
     }
 
-    if (priority && !['low', 'medium', 'high'].includes(priority)) {
-      return res.status(400).json({
-        success: false,
-        error: 'Validation failed',
-        details: [`'${priority}' is not a valid priority. Must be low, medium, or high.`]
-      });
-    }
-
-    if (title !== undefined) {
-      if (typeof title !== 'string' || title.trim() === '') {
-        return res.status(400).json({
-          success: false,
-          error: 'Validation failed',
-          details: ['Task title is required and cannot be empty']
-        });
-      }
-      inMemoryTasks[taskIndex].title = title.trim();
-    }
-    if (description !== undefined) inMemoryTasks[taskIndex].description = description;
+    if (title !== undefined) inMemoryTasks[taskIndex].title = title.trim();
+    if (description !== undefined) inMemoryTasks[taskIndex].description = description.trim();
     if (priority !== undefined) inMemoryTasks[taskIndex].priority = priority;
     if (completed !== undefined) inMemoryTasks[taskIndex].completed = Boolean(completed);
 
@@ -255,7 +448,7 @@ const updateTask = async (req, res, next) => {
   }
 };
 
-// 5. DELETE /tasks/:id → deleteTask
+// 5. DELETE /tasks/:id → deleteTask (Protected)
 const deleteTask = async (req, res, next) => {
   try {
     if (mongoose.connection.readyState === 1) {
@@ -295,20 +488,46 @@ const deleteTask = async (req, res, next) => {
 };
 
 // ==========================================
-// Express Router Pipeline
+// Authentication Routes Pipeline
+// ==========================================
+const authRouter = express.Router();
+
+authRouter.post('/register', validateRegisterInput, registerUser);
+authRouter.post('/login', validateLoginInput, loginUser);
+authRouter.get('/me', authMiddleware, getCurrentUser);
+
+// Mount auth endpoints directly at root and under /api/auth
+app.post('/register', validateRegisterInput, registerUser);
+app.post('/login', validateLoginInput, loginUser);
+app.get('/me', authMiddleware, getCurrentUser);
+
+app.use('/auth', authRouter);
+app.use('/api/auth', authRouter);
+
+// ==========================================
+// Task Management Router Pipeline
+// Protected Route Flow:
+// Client Request (Authorization: Bearer <token>)
+//   -> [Auth Middleware] verifies token -> req.user set
+//   -> [Validation Middleware] checks input
+//   -> Controller (task routes)
 // ==========================================
 const taskRouter = express.Router();
 
+// Step 6: Apply auth middleware to all task routes
+taskRouter.use(authMiddleware);
+
 taskRouter.get('/', getAllTasks);
 taskRouter.get('/:id', validateObjectId, getTaskById);
-taskRouter.post('/', createTask);
-taskRouter.put('/:id', validateObjectId, updateTask);
+taskRouter.post('/', validateTaskInput, createTask);
+taskRouter.put('/:id', validateObjectId, validateTaskUpdateInput, updateTask);
 taskRouter.delete('/:id', validateObjectId, deleteTask);
 
+// Mount task router on /tasks and /api/tasks
 app.use('/tasks', taskRouter);
 app.use('/api/tasks', taskRouter);
 
-// Health check endpoint
+// Health check endpoint (Public)
 app.get('/health', (req, res) => {
   res.status(200).json({
     status: 'healthy',
@@ -361,11 +580,14 @@ if (process.env.NODE_ENV !== 'test') {
   app.listen(PORT, () => {
     console.log(`Task Management API Server running on port ${PORT}`);
     console.log(`Available endpoints:`);
-    console.log(`  - GET    http://localhost:${PORT}/tasks`);
-    console.log(`  - GET    http://localhost:${PORT}/tasks/:id`);
-    console.log(`  - POST   http://localhost:${PORT}/tasks`);
-    console.log(`  - PUT    http://localhost:${PORT}/tasks/:id`);
-    console.log(`  - DELETE http://localhost:${PORT}/tasks/:id`);
+    console.log(`  - POST   http://localhost:${PORT}/register`);
+    console.log(`  - POST   http://localhost:${PORT}/login`);
+    console.log(`  - GET    http://localhost:${PORT}/me (Protected: Bearer <token>)`);
+    console.log(`  - GET    http://localhost:${PORT}/tasks (Protected)`);
+    console.log(`  - GET    http://localhost:${PORT}/tasks/:id (Protected)`);
+    console.log(`  - POST   http://localhost:${PORT}/tasks (Protected + Validated)`);
+    console.log(`  - PUT    http://localhost:${PORT}/tasks/:id (Protected + Validated)`);
+    console.log(`  - DELETE http://localhost:${PORT}/tasks/:id (Protected)`);
   });
 }
 

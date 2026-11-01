@@ -1,0 +1,132 @@
+### Practical 7: Authentication & Middleware Pipeline HTTP Tests
+### Use with REST Client extension or import into Postman
+
+@baseUrl = http://localhost:5000
+
+### 1. Health Check (Public Route)
+GET {{baseUrl}}/health
+Accept: application/json
+
+### 2. User Registration - Validation Failure: Short Password (Rejected by Middleware)
+POST {{baseUrl}}/register
+Content-Type: application/json
+
+{
+  "email": "student@charusat.edu.in",
+  "password": "123"
+}
+
+### 3. User Registration - Validation Failure: Malformed Email (Rejected by Middleware)
+POST {{baseUrl}}/register
+Content-Type: application/json
+
+{
+  "email": "not-an-email",
+  "password": "ValidPassword123"
+}
+
+### 4. User Registration - Success (bcrypt hashed password)
+POST {{baseUrl}}/register
+Content-Type: application/json
+
+{
+  "email": "student@charusat.edu.in",
+  "password": "ValidPassword123",
+  "name": "Charusat Student"
+}
+
+### 5. User Login - Failure (Wrong Password -> 401 Unauthorized)
+POST {{baseUrl}}/login
+Content-Type: application/json
+
+{
+  "email": "student@charusat.edu.in",
+  "password": "WrongPassword!"
+}
+
+### 6. User Login - Success (Generates JWT Token)
+# @name login
+POST {{baseUrl}}/login
+Content-Type: application/json
+
+{
+  "email": "student@charusat.edu.in",
+  "password": "ValidPassword123"
+}
+
+### Extract token for subsequent requests
+@authToken = {{login.response.body.token}}
+
+### 7. Access Protected Task Route WITHOUT Token (401 Unauthorized)
+GET {{baseUrl}}/tasks
+Accept: application/json
+
+### 8. Access Protected Route WITH Tampered/Invalid Token (401 Unauthorized)
+GET {{baseUrl}}/tasks
+Authorization: Bearer invalid.jwt.token
+Accept: application/json
+
+### 9. Access Protected /me Endpoint (Supplementary Problem 1)
+GET {{baseUrl}}/me
+Authorization: Bearer {{authToken}}
+Accept: application/json
+
+### 10. Create Task - Validation Failure: Missing Title (Rejected by Middleware before DB)
+POST {{baseUrl}}/tasks
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "description": "Missing title should be rejected by validation middleware"
+}
+
+### 11. Create Task - Validation Failure: Invalid Priority (Rejected by Middleware)
+POST {{baseUrl}}/tasks
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "title": "Learn Middleware",
+  "priority": "super-urgent"
+}
+
+### 12. Create Task - Success (Protected + Validated)
+# @name createTask
+POST {{baseUrl}}/tasks
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "title": "Complete Practical 7 JWT Pipeline",
+  "description": "Implemented auth middleware, input validation, bcrypt password hashing",
+  "priority": "high",
+  "completed": false
+}
+
+@taskId = {{createTask.response.body.data._id}}
+
+### 13. Get All Tasks (Protected)
+GET {{baseUrl}}/tasks
+Authorization: Bearer {{authToken}}
+Accept: application/json
+
+### 14. Get Task By ID (Protected)
+GET {{baseUrl}}/tasks/{{taskId}}
+Authorization: Bearer {{authToken}}
+Accept: application/json
+
+### 15. Update Task (Protected + Validated)
+PUT {{baseUrl}}/tasks/{{taskId}}
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "title": "Complete Practical 7 JWT Pipeline (Verified)",
+  "completed": true,
+  "priority": "medium"
+}
+
+### 16. Delete Task (Protected)
+DELETE {{baseUrl}}/tasks/{{taskId}}
+Authorization: Bearer {{authToken}}
+Accept: application/json

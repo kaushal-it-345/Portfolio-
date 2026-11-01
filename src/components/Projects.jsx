@@ -54,6 +54,13 @@ function Projects() {
 
     useEffect(() => {
         loadTasks();
+
+        const handleAuthChange = () => {
+            loadTasks();
+        };
+
+        window.addEventListener('auth:change', handleAuthChange);
+        return () => window.removeEventListener('auth:change', handleAuthChange);
     }, [loadTasks]);
 
     // Supplementary Problem 1: Optimistic UI update for task creation
